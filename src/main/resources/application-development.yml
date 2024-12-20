@@ -19,7 +19,7 @@ spring:
   config:
     activate:
       on-profile: development
-    import: optional:consul:${CONSUL_URL:host.docker.internal:8500/}
+    import: optional:consul:${CONSUL_HOST:host.docker.internal}:${CONSUL_PORT:8500}/
   cloud:
     consul:
       config:
@@ -41,7 +41,7 @@ qip:
     artifact-descriptor-version: ${ARTIFACT_DESCRIPTOR_VERSION:'0'}
 
 consul:
-  url: ${CONSUL_URL:http://consul:8500}
+  url: http://${CONSUL_HOST:consul}:${CONSUL_PORT:8500}
 
 core:
   contextpropagation:
