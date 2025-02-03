@@ -17,7 +17,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <revision>0.1.0</revision>
-        <catalog-library.revision>2025.1.1.15</catalog-library.revision>
+        <catalog-library.revision>0.1.0</catalog-library.revision>
 
         <!-- BOMs -->
 
@@ -27,7 +27,7 @@
 
         <spring-cloud.version>2024.0.0</spring-cloud.version>
         <springdoc.version>2.6.0</springdoc.version>
-        <lombok.version>1.18.30</lombok.version>
+        <lombok.version9>1.18.30</lombok.version9>
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
         <postgres-driver.version>42.7.2</postgres-driver.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
