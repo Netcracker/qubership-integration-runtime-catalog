@@ -19,6 +19,8 @@ package org.qubership.integration.platform.runtime.catalog.model.system.exportim
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
+
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.ExportableObject;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ExportableObjectWriterVisitor;
 
 import java.io.IOException;

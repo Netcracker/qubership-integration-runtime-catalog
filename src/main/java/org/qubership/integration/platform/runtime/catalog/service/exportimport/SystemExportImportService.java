@@ -36,6 +36,7 @@ import org.qubership.integration.platform.catalog.persistence.configs.entity.act
 import org.qubership.integration.platform.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
+import org.qubership.integration.platform.catalog.service.exportimport.ImportFilesExtractor;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.IgnoreResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
@@ -53,6 +54,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.d
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ServiceSerializer;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.auditing.AuditingHandler;
@@ -101,6 +103,7 @@ public class SystemExportImportService {
     private final ServiceDeserializer serviceDeserializer;
     private final ImportSessionService importProgressService;
     private final ImportInstructionsService importInstructionsService;
+    private final ImportFilesExtractor importFilesExtractor;
 
     @Value("${qip.export.remove-unused-specifications}")
     private boolean removeUnusedSpecs;
@@ -117,7 +120,8 @@ public class SystemExportImportService {
             ServiceSerializer serviceSerializer,
             ServiceDeserializer serviceDeserializer,
             ImportSessionService importProgressService,
-            ImportInstructionsService importInstructionsService
+            ImportInstructionsService importInstructionsService,
+            @Qualifier("serviceImportFilesExtractor") ImportFilesExtractor importFilesExtractor
     ) {
         this.transactionTemplate = transactionTemplate;
         this.yamlMapper = yamlExportImportMapper;
@@ -130,6 +134,7 @@ public class SystemExportImportService {
         this.serviceDeserializer = serviceDeserializer;
         this.importProgressService = importProgressService;
         this.importInstructionsService = importInstructionsService;
+        this.importFilesExtractor = importFilesExtractor;
     }
 
     private void removeUnusedSpecifications(IntegrationSystem integrationSystem, List<String> usedSystemModelIds) {
@@ -209,7 +214,7 @@ public class SystemExportImportService {
             List<File> extractedSystemFiles = new ArrayList<>();
 
             try (InputStream fs = file.getInputStream()) {
-                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory);
+                extractedSystemFiles = importFilesExtractor.extractFromZip(fs, exportDirectory);
             } catch (ServicesNotFoundException e) {
                 deleteFile(exportDirectory);
             } catch (IOException e) {
@@ -236,7 +241,7 @@ public class SystemExportImportService {
     public List<ImportSystemResult> getSystemsImportPreview(File importDirectory, ImportInstructionsConfig instructionsConfig) {
         List<File> systemsFiles;
         try {
-            systemsFiles = extractSystemsFromImportDirectory(importDirectory.getAbsolutePath());
+            systemsFiles = importFilesExtractor.extractFromImportDirectory(importDirectory.getAbsolutePath());
         } catch (Exception e) {
             throw new RuntimeException("Error while extracting systems", e);
         }
@@ -307,7 +312,7 @@ public class SystemExportImportService {
             List<File> extractedSystemFiles;
 
             try (InputStream fs = importFile.getInputStream()) {
-                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory);
+                extractedSystemFiles = importFilesExtractor.extractFromZip(fs, exportDirectory);
             } catch (IOException e) {
                 deleteFile(exportDirectory);
                 throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
@@ -318,12 +323,12 @@ public class SystemExportImportService {
 
             Set<String> servicesToImport = importInstructionsService.performServiceIgnoreInstructions(
                     extractedSystemFiles.stream()
-                            .map(ExportImportUtils::extractSystemIdFromFileName)
+                            .map(importFilesExtractor::extractEntityIdFromFileName)
                             .collect(Collectors.toSet()),
                     false)
                     .idsToImport();
             for (File singleSystemFile : extractedSystemFiles) {
-                String serviceId = extractSystemIdFromFileName(singleSystemFile);
+                String serviceId = importFilesExtractor.extractEntityIdFromFileName(singleSystemFile);
                 if (!servicesToImport.contains(serviceId)) {
                     response.add(ImportSystemResult.builder()
                             .id(serviceId)
@@ -361,7 +366,7 @@ public class SystemExportImportService {
 
         List<File> systemsFiles;
         try {
-            systemsFiles = extractSystemsFromImportDirectory(importDirectory.getAbsolutePath());
+            systemsFiles = importFilesExtractor.extractFromImportDirectory(importDirectory.getAbsolutePath());
         } catch (IOException e) {
             throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
         }
@@ -373,7 +378,7 @@ public class SystemExportImportService {
 
         IgnoreResult ignoreResult = importInstructionsService.performServiceIgnoreInstructions(
                 systemsFiles.stream()
-                    .map(ExportImportUtils::extractSystemIdFromFileName)
+                    .map(importFilesExtractor::extractEntityIdFromFileName)
                     .collect(Collectors.toSet()),
                 true
         );
@@ -381,7 +386,7 @@ public class SystemExportImportService {
         int counter = 0;
         List<ImportSystemResult> response = new ArrayList<>();
         for (File systemFile : systemsFiles) {
-            String serviceId = extractSystemIdFromFileName(systemFile);
+            String serviceId = importFilesExtractor.extractEntityIdFromFileName(systemFile);
             if (!ignoreResult.idsToImport().contains(serviceId)) {
                 response.add(ImportSystemResult.builder()
                         .id(serviceId)

@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.template.ExportedTemplate;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedIntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecification;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecificationGroup;
@@ -68,5 +69,11 @@ public class ExportableObjectWriterVisitor {
 
         ExportImportUtils.writeSystemObject(zipOut, entryPath + exportedSpecificationSource.getName(),
                 exportedSpecificationSource.getSource());
+    }
+
+    public void visit(ExportedTemplate exportedTemplate, ZipOutputStream zipOut, String entryPath) throws IOException {
+        ExportImportUtils.writeZip(zipOut,
+                entryPath + ExportImportUtils.generateTemplateFileExportName(exportedTemplate.getId()),
+                yamlMapper.writeValueAsString(exportedTemplate.getObjectNode()));
     }
 }

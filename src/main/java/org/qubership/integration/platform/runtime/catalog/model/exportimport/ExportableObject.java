@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.model.system.exportimport;
+package org.qubership.integration.platform.runtime.catalog.model.exportimport;
 
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ExportableObjectWriterVisitor;
 
