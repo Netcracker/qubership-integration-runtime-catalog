@@ -38,6 +38,7 @@ import org.qubership.integration.platform.catalog.persistence.configs.repository
 import org.qubership.integration.platform.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.builder.XmlBuilder;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
+import org.qubership.integration.platform.runtime.catalog.service.templates.ChainElementTemplateReferenceReplacer;
 import org.qubership.integration.platform.runtime.catalog.service.verification.ElementPropertiesVerificationService;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -77,6 +78,7 @@ public class SnapshotService {
     private final TransactionHandler transactionHandler;
     private final SnapshotService self;
     private final SnapshotLabelsRepository snapshotLabelsRepository;
+    private final ChainElementTemplateReferenceReplacer templateReferenceReplacer;
 
     @Autowired
     public SnapshotService(SnapshotRepository snapshotRepository,
@@ -91,7 +93,8 @@ public class SnapshotService {
                            ElementPropertiesVerificationService elementPropertiesVerificationService,
                            MaskedFieldsService maskedFieldsService,
                            TransactionHandler  transactionHandler,
-                           SnapshotLabelsRepository snapshotLabelsRepository) {
+                           SnapshotLabelsRepository snapshotLabelsRepository,
+                           ChainElementTemplateReferenceReplacer templateReferenceReplacer) {
         this.snapshotRepository = snapshotRepository;
         this.elementRepository = elementRepository;
         this.elementService = elementService;
@@ -105,6 +108,7 @@ public class SnapshotService {
         this.transactionHandler = transactionHandler;
         this.self = self;
         this.snapshotLabelsRepository = snapshotLabelsRepository;
+        this.templateReferenceReplacer = templateReferenceReplacer;
     }
 
     public Snapshot findById(String snapshotId) {
@@ -173,6 +177,7 @@ public class SnapshotService {
         moveMaskedFields(chain.getMaskedFields(), snapshot);
         List<ChainElement> snapshotElements = snapshot.getElements();
         fillServiceEnvironments(snapshotElements);
+        templateReferenceReplacer.replaceTemplateReferences(snapshotElements);
 
         try {
             snapshot.setXmlDefinition(xmlBuilder.build(snapshotElements));

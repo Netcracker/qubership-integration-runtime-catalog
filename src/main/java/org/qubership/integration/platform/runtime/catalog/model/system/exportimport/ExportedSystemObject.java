@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.system.exportimport;
 
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.ExportableObject;
+
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
