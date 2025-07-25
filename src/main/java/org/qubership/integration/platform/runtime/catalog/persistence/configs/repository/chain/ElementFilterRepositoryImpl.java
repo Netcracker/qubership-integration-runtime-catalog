@@ -338,12 +338,11 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
     }
 
     private Predicate getAccessControlTypePredicate(CriteriaBuilder builder, ChainElementFilterRequestDTO filter, Root<ChainElement> chainElementRoot) {
-        Predicate accessControlTypePredicate = null;
-        switch (filter.getCondition()) {
-            case IS -> accessControlTypePredicate = getIsAccessControlTypePredicate(builder, chainElementRoot, filter.getValue());
-            case IS_NOT -> accessControlTypePredicate = getIsAccessControlTypePredicate(builder, chainElementRoot, filter.getValue()).not();
-        }
-        return accessControlTypePredicate;
+        return switch (filter.getCondition()) {
+            case IS -> getIsAccessControlTypePredicate(builder, chainElementRoot, filter.getValue());
+            case IS_NOT -> getIsAccessControlTypePredicate(builder, chainElementRoot, filter.getValue()).not();
+            default -> null;
+        };
     }
 
     private Predicate getIsAccessControlTypePredicate(CriteriaBuilder builder, Root<ChainElement> chainElementRoot, String filterValue) {
@@ -352,12 +351,11 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
     }
 
     private Predicate getRolesResourcePredicate(CriteriaBuilder builder, ChainElementFilterRequestDTO filter, Root<ChainElement> chainElementRoot) {
-        Predicate rolesResourcePredicate = null;
-        switch (filter.getCondition()) {
-            case CONTAINS -> rolesResourcePredicate = getLikeRolesResourcePredicate(builder, chainElementRoot, "%" + filter.getValue().toLowerCase() + "%");
-            case DOES_NOT_CONTAIN -> rolesResourcePredicate = getLikeRolesResourcePredicate(builder, chainElementRoot, "%" + filter.getValue().toLowerCase() + "%").not();
-        }
-        return rolesResourcePredicate;
+        return switch (filter.getCondition()) {
+            case CONTAINS -> getLikeRolesResourcePredicate(builder, chainElementRoot, "%" + filter.getValue().toLowerCase() + "%");
+            case DOES_NOT_CONTAIN -> getLikeRolesResourcePredicate(builder, chainElementRoot, "%" + filter.getValue().toLowerCase() + "%").not();
+            default -> null;
+        };
     }
 
     private Predicate getLikeRolesResourcePredicate(CriteriaBuilder builder, Root<ChainElement> chainElementRoot, String filterValue) {
