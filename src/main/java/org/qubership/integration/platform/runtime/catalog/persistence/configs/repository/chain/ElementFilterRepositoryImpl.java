@@ -128,6 +128,8 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
                 case TYPE -> predicates.add(getTypePredicate(builder, filter, chainElementRoot));
                 case ROLES -> predicates.add(getRolesPredicate(builder, filter, chainElementRoot));
                 case CHAIN -> predicates.add(getChainPredicate(builder, filter, chainElementRoot));
+                case ACCESS_CONTROL_TYPE -> predicates.add(getAccessControlTypePredicate(builder, filter, chainElementRoot));
+                case ROLES_RESOURCE -> predicates.add(getRolesResourcePredicate(builder, filter, chainElementRoot));
             }
         }
     }
@@ -333,6 +335,33 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
             }
         }
         filters.removeAll(filtersToRemove);
+    }
+
+    private Predicate getAccessControlTypePredicate(CriteriaBuilder builder, ChainElementFilterRequestDTO filter, Root<ChainElement> chainElementRoot) {
+        Predicate accessControlTypePredicate = null;
+        switch (filter.getCondition()) {
+            case IS -> accessControlTypePredicate = getIsAccessControlTypePredicate(builder, chainElementRoot, filter.getValue());
+            case IS_NOT -> accessControlTypePredicate = getIsAccessControlTypePredicate(builder, chainElementRoot, filter.getValue()).not();
+        }
+        return accessControlTypePredicate;
+    }
+
+    private Predicate getIsAccessControlTypePredicate(CriteriaBuilder builder, Root<ChainElement> chainElementRoot, String filterValue) {
+        Expression<String> accessControlTypeExpression = getJsonPropertyStringExpression(builder, chainElementRoot, "accessControlType", true);
+        return builder.equal(accessControlTypeExpression, filterValue.toLowerCase());
+    }
+
+    private Predicate getRolesResourcePredicate(CriteriaBuilder builder, ChainElementFilterRequestDTO filter, Root<ChainElement> chainElementRoot) {
+        Predicate rolesResourcePredicate = null;
+        switch (filter.getCondition()) {
+            case CONTAINS -> rolesResourcePredicate = getLikeRolesResourcePredicate(builder, chainElementRoot, "%" + filter.getValue().toLowerCase() + "%");
+            case DOES_NOT_CONTAIN -> rolesResourcePredicate = getLikeRolesResourcePredicate(builder, chainElementRoot, "%" + filter.getValue().toLowerCase() + "%").not();
+        }
+        return rolesResourcePredicate;
+    }
+
+    private Predicate getLikeRolesResourcePredicate(CriteriaBuilder builder, Root<ChainElement> chainElementRoot, String filterValue) {
+        return builder.like(getJsonPropertyStringExpression(builder, chainElementRoot, "rolesResource", true), filterValue);
     }
 
 }
