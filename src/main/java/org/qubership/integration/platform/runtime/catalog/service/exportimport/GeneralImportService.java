@@ -20,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.context.RequestIdContext;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainsAndInstructionsResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportContextServiceAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.GeneralImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionResult;
@@ -57,6 +58,8 @@ public class GeneralImportService {
 
     private final CommonVariablesImportService commonVariablesImportService;
     private final SystemExportImportService systemExportImportService;
+    private final ContextExportImportService contextExportImportService;
+
     private final ChainImportService chainImportService;
     private final ImportSessionService importSessionService;
     private final ActionsLogService actionsLogService;
@@ -67,7 +70,7 @@ public class GeneralImportService {
     public GeneralImportService(
             CommonVariablesImportService commonVariablesImportService,
             SystemExportImportService systemExportImportService,
-            ChainImportService chainImportService,
+            ContextExportImportService contextExportImportService, ChainImportService chainImportService,
             ImportSessionService importSessionService,
             ActionsLogService actionsLogService,
             ImportInstructionsService importInstructionsService,
@@ -75,6 +78,7 @@ public class GeneralImportService {
     ) {
         this.commonVariablesImportService = commonVariablesImportService;
         this.systemExportImportService = systemExportImportService;
+        this.contextExportImportService = contextExportImportService;
         this.chainImportService = chainImportService;
         this.importSessionService = importSessionService;
         this.actionsLogService = actionsLogService;
@@ -106,6 +110,7 @@ public class GeneralImportService {
                     .variables(commonVariablesImportService.getCommonVariablesImportPreview(unpackedDirectory))
                     .chains(chainImportService.getChainsImportPreview(unpackedDirectory, instructionsConfig.getChains()))
                     .systems(systemExportImportService.getSystemsImportPreview(unpackedDirectory, instructionsConfig.getServices()))
+                    .contextService(contextExportImportService.getContextServiceImportPreview(unpackedDirectory, instructionsConfig.getContextServices()))
                     .instructions(generalInstructionsMapper.asDTO(importInstructions))
                     .build();
         } finally {
@@ -154,11 +159,13 @@ public class GeneralImportService {
                     .importCommonVariables(unpackedDirectory, importRequest.getVariablesCommitRequest(), importId);
             ImportSystemsAndInstructionsResult importSystemsAndInstructionsResult = systemExportImportService
                     .importSystems(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId, technicalLabels);
+            ImportContextServiceAndInstructionsResult importChainsAndContextInstructionsResult = contextExportImportService.importContextService(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId);
             ImportChainsAndInstructionsResult importChainsAndInstructionsResult = chainImportService
                     .importChains(unpackedDirectory, importRequest.getChainCommitRequests(), importId, technicalLabels, validateByHash);
 
             importInstructionResults.addAll(importChainsAndInstructionsResult.instructionResults());
             importInstructionResults.addAll(importSystemsAndInstructionsResult.instructionResults());
+            importInstructionResults.addAll(importChainsAndContextInstructionsResult.instructionResults());
             importInstructionResults.addAll(variablesResult.getInstructions());
             return ImportResult.builder()
                     .chains(importChainsAndInstructionsResult.chainResults())

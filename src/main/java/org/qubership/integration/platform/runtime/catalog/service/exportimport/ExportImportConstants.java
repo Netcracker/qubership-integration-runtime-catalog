@@ -35,6 +35,7 @@ public class ExportImportConstants {
     @Deprecated
     public static final String SERVICE_YAML_NAME_PREFIX = "service-";
     public static final String SERVICE_YAML_NAME_POSTFIX = ".service.";
+    public static final String CONTEXT_SERVICE_YAML_NAME_POSTFIX = ".context-service.";
     public static final String SOURCE_YAML_NAME_PREFIX = RESOURCES_FOLDER_PREFIX + "source-";
     public static final String EXPORT_FILE_NAME_PREFIX = "export-";
     public static final String IMPORT_FILE_NAME_PREFIX = "import-";
