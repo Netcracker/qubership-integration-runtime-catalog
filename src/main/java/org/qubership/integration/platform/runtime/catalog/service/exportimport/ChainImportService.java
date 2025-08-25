@@ -411,10 +411,10 @@ public class ChainImportService {
         ImportEntityStatus importStatus = currentChainState != null ? ImportEntityStatus.UPDATED : ImportEntityStatus.CREATED;
 
         Folder existingFolder = null;
-        if (chainExternalEntity.getFolder() != null) {
-            existingFolder = folderService.findFirstByName(chainExternalEntity.getFolder().getName(), null);
+        if (chainExternalEntity.getContent().getFolder() != null) {
+            existingFolder = folderService.findFirstByName(chainExternalEntity.getContent().getFolder().getName(), null);
             if (existingFolder == null) {
-                existingFolder = Folder.builder().name(chainExternalEntity.getFolder().getName()).build();
+                existingFolder = Folder.builder().name(chainExternalEntity.getContent().getFolder().getName()).build();
                 existingFolder = folderService.save(existingFolder, (String) null);
             }
         }
