@@ -17,15 +17,15 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain;
 
 import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.catalog.model.library.ElementType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
-import org.qubership.integration.platform.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainElementExternalEntity;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainElementsExternalMapperEntity;
+import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
+import org.qubership.integration.platform.runtime.catalog.model.library.ElementType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
+import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 
@@ -34,7 +34,8 @@ import java.sql.Timestamp;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.qubership.integration.platform.catalog.model.constant.CamelNames.CONTAINER;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.CONTAINER;
+
 
 @Component
 public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<List<ChainElement>, ChainElementsExternalMapperEntity> {
@@ -92,9 +93,7 @@ public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<L
         Map<String, byte[]> propertyFiles = new HashMap<>();
         List<ChainElementExternalEntity> elementsExternalEntities = chainElements.stream()
                 .filter(element -> element.getParent() == null)
-                .map(this::createExternalFromInternal)
-                .peek(externalElement -> propertyFiles.putAll(
-                        chainElementFilePropertiesSubstitutor.getElementPropertiesAsSeparateFiles(externalElement)))
+                .map(element -> createExternalFromInternal(element, propertyFiles))
                 .collect(Collectors.toList());
         return ChainElementsExternalMapperEntity.builder()
                 .chainElementExternalEntities(elementsExternalEntities)
@@ -157,15 +156,15 @@ public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<L
         return element;
     }
 
-    private ChainElementExternalEntity createExternalFromInternal(ChainElement element) {
+    private ChainElementExternalEntity createExternalFromInternal(ChainElement element, final Map<String, byte[]> propertyFiles) {
         List<ChainElementExternalEntity> childrenExternalEntities = new ArrayList<>();
         if (element instanceof ContainerChainElement containerElement) {
             for (ChainElement child : containerElement.getElements()) {
-                childrenExternalEntities.add(createExternalFromInternal(child));
+                childrenExternalEntities.add(createExternalFromInternal(child, propertyFiles));
             }
         }
 
-        return ChainElementExternalEntity.builder()
+        ChainElementExternalEntity externalElement = ChainElementExternalEntity.builder()
                 .id(element.getId())
                 .type(element.getType())
                 .name(element.getName())
@@ -174,16 +173,19 @@ public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<L
                 .swimlaneId(Optional.ofNullable(element.getSwimlane()).map(ChainElement::getId).orElse(null))
                 .originalId(element.getOriginalId())
                 .serviceEnvironment(element.getEnvironment())
-                .properties(preSortProperties(element.getProperties()))
+                .properties(new TreeMap<>(preSortProperties(element.getProperties())))
                 .build();
+
+        propertyFiles.putAll(chainElementFilePropertiesSubstitutor.getElementPropertiesAsSeparateFiles(externalElement));
+
+        return externalElement;
     }
 
     public static Map<String, Object> preSortProperties(Map<String, Object> properties) {
-        Map<String, Object> result = new LinkedHashMap<>(properties);
         // Only roles list should be sorted by now
-        if (result.containsKey("roles") && result.get("roles") instanceof List<?>) {
-            result.put("roles", ((List<String>) result.get("roles")).stream().sorted().toList());
+        if (properties.containsKey("roles") && properties.get("roles") instanceof List<?>) {
+            properties.put("roles", ((List<String>) properties.get("roles")).stream().sorted().toList());
         }
-        return result;
+        return properties;
     }
 }

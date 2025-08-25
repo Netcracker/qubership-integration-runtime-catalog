@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -30,7 +31,7 @@ public class V100ServiceImportFileMigration implements ServiceImportFileMigratio
     }
 
     @Override
-    public ObjectNode makeMigration(ObjectNode fileNode) {
+    public ObjectNode makeMigration(ObjectNode fileNode) throws JsonProcessingException {
         log.debug("Initial service migration V100");
         return fileNode;
     }

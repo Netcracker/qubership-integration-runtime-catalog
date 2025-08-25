@@ -24,19 +24,21 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Deployment;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.Snapshot;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions.ChainExportException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainExportException;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.ChainService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
+import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,30 +54,43 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.*;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
+
 
 @Slf4j
 @Transactional(readOnly = true)
 @Service
 public class ExportService {
+
+    @Value("${app.prefix}")
+    private String appName;
+
     private final YAMLMapper yamlMapper;
     private final ObjectMapper objectMapper;
     private final ChainService chainService;
+    private final ChainFinderService chainFinderService;
     private final ActionsLogService actionLogger;
+    private final ChainExternalEntityMapper chainExternalEntityMapper;
 
     @Autowired
-    public ExportService(YAMLMapper yamlMapper,
-                         @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
-                         ChainService chainService,
-                         ActionsLogService actionLogger) {
+    public ExportService(
+            YAMLMapper yamlMapper,
+            @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
+            ChainService chainService,
+            ActionsLogService actionLogger,
+            ChainFinderService chainFinderService,
+            ChainExternalEntityMapper chainExternalEntityMapper
+    ) {
         this.yamlMapper = yamlMapper;
         this.objectMapper = objectMapper;
         this.chainService = chainService;
+        this.chainFinderService = chainFinderService;
         this.actionLogger = actionLogger;
+        this.chainExternalEntityMapper = chainExternalEntityMapper;
     }
 
     public Pair<String, byte[]> exportAllChains() {
-        List<Chain> allChains = chainService.findAll();
+        List<Chain> allChains = chainFinderService.findAll();
         return exportChain(allChains);
     }
 
@@ -83,12 +98,12 @@ public class ExportService {
         if (exportWithSubChains) {
             chainIds = chainService.getSubChainsIds(chainIds, new ArrayList<String>());
         }
-        List<Chain> chains = chainService.findAllById(chainIds);
+        List<Chain> chains = chainFinderService.findAllById(chainIds);
         return exportChain(chains);
     }
 
     public Pair<String, byte[]> exportSingleChain(String chainId) {
-        Chain chain = chainService.findById(chainId);
+        Chain chain = chainFinderService.findById(chainId);
         return exportChain(List.of(chain));
     }
 
@@ -125,11 +140,11 @@ public class ExportService {
                             .getId())).findFirst().orElse(deployments.stream()
                             .min(Comparator.comparing(Deployment::getCreatedWhen)).orElse(null))));
         }
-        String chainYaml = convertChainToYaml(chain);
+        var entity = chainExternalEntityMapper.toExternalEntity(chain);
+        String chainYaml = yamlMapper.writeValueAsString(entity.getChainExternalEntity());
         result.put(chainDirectory.resolve(chainFileName), chainYaml.getBytes());
-
-        getPropertiesToSaveInSeparateFile(chain)
-                .forEach((name, value) -> result.put(chainDirectory.resolve(name), value.getBytes()));
+        entity.getElementPropertyFiles()
+                .forEach((name, data) -> result.put(chainDirectory.resolve(name), data));
 
         return result;
     }
@@ -161,11 +176,7 @@ public class ExportService {
     }
 
     public String generateChainYamlName(Chain chain) {
-        return CHAIN_YAML_NAME_PREFIX + chain.getId() + YAML_FILE_NAME_POSTFIX;
-    }
-
-    public String convertChainToYaml(Chain chain) throws JsonProcessingException {
-        return yamlMapper.writeValueAsString(chain);
+        return chain.getId() + CHAIN_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     private void logChainExport(Chain chain) {
@@ -215,7 +226,7 @@ public class ExportService {
             }
 
             if (SERVICE_CALL.equals(element.getType())) {
-                String propString = null;
+                String propString;
                 List<Map<String, Object>> afterPropertyList = (List<Map<String, Object>>) element.getProperties().get(AFTER);
                 if (!CollectionUtils.isEmpty(afterPropertyList)) {
                     for (Map<String, Object> afterProperty : afterPropertyList) {

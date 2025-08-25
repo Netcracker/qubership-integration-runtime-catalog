@@ -24,9 +24,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainElementExternalEntity;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
@@ -36,7 +36,8 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.*;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
+
 
 @Component
 @Slf4j
@@ -80,6 +81,8 @@ public class ChainElementFilePropertiesSubstitutor {
 
     private void restoreProperties(ChainElement element, File chainFilesDir, String propertiesFilename) throws IOException {
         if (!SERVICE_CALL.equals(element.getType())) {
+            propertiesFilename = Optional.ofNullable(propertiesFilename)
+                    .orElse(element.getPropertyAsString(FILE_NAME_PROPERTY));
             if (propertiesFilename == null) {
                 return;
             }
@@ -272,23 +275,23 @@ public class ChainElementFilePropertiesSubstitutor {
                 .map(Object::toString)
                 .orElse(DEFAULT_EXTENSION);
 
-        return prefix + "-" + externalElement.getId() + "." + extension;
+        return RESOURCES_FOLDER_PREFIX + prefix + "-" + externalElement.getId() + "." + extension;
     }
 
     private String generateAfterScriptFileName(String id, Map<String, Object> afterProp) {
-        return SCRIPT + DASH + getIdOrCode(afterProp) + DASH + id + "." + GROOVY_EXTENSION;
+        return RESOURCES_FOLDER_PREFIX + SCRIPT + DASH + getIdOrCode(afterProp) + DASH + id + "." + GROOVY_EXTENSION;
     }
 
     private String generateBeforeScriptFileName(String id) {
-        return SCRIPT + DASH + BEFORE + DASH + id + "." + GROOVY_EXTENSION;
+        return RESOURCES_FOLDER_PREFIX + SCRIPT + DASH + BEFORE + DASH + id + "." + GROOVY_EXTENSION;
     }
 
     private String generateAfterMapperFileName(String id, Map<String, Object> afterProp) {
-        return MAPPING_DESCRIPTION + DASH + getIdOrCode(afterProp) + DASH + id + "." + JSON_EXTENSION;
+        return RESOURCES_FOLDER_PREFIX + MAPPING_DESCRIPTION + DASH + getIdOrCode(afterProp) + DASH + id + "." + JSON_EXTENSION;
     }
 
     private String generateBeforeMapperFileName(String id) {
-        return MAPPING_DESCRIPTION + DASH + BEFORE + DASH + id + "." + JSON_EXTENSION;
+        return RESOURCES_FOLDER_PREFIX + MAPPING_DESCRIPTION + DASH + BEFORE + DASH + id + "." + JSON_EXTENSION;
     }
 
     private Object getIdOrCode(Map<String, Object> mapProp) {
