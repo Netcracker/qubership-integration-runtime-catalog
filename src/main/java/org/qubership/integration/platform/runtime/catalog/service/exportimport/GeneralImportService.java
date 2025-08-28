@@ -170,6 +170,7 @@ public class GeneralImportService {
             return ImportResult.builder()
                     .chains(importChainsAndInstructionsResult.chainResults())
                     .systems(importSystemsAndInstructionsResult.importSystemResults())
+                    .contextService(importChainsAndContextInstructionsResult.importSystemResults())
                     .variables(variablesResult.getVariables())
                     .instructionsResult(importInstructionResults)
                     .build();

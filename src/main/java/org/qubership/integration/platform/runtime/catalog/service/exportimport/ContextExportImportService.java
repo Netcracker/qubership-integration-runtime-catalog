@@ -379,8 +379,8 @@ public class ContextExportImportService {
                 ImportSystemStatus importStatus = enrichAndSaveContextSystem(deserializationResult);
 
                 return ImportSystemResult.builder()
-                        .id(deserializationResult.getSystem().getId())
-                        .name(deserializationResult.getSystem().getName())
+                        .id(deserializationResult.getContextSystem().getId())
+                        .name(deserializationResult.getContextSystem().getName())
                         .status(importStatus)
                         .message(message.toString())
                         .build();
