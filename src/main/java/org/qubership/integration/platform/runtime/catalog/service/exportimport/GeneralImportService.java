@@ -59,7 +59,6 @@ public class GeneralImportService {
     private final CommonVariablesImportService commonVariablesImportService;
     private final SystemExportImportService systemExportImportService;
     private final ContextExportImportService contextExportImportService;
-
     private final ChainImportService chainImportService;
     private final ImportSessionService importSessionService;
     private final ActionsLogService actionsLogService;
