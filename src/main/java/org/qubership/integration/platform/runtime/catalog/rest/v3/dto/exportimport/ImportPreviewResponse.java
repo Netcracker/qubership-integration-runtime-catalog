@@ -23,7 +23,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.GeneralImportInstructionsDTO;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.GeneralImportInstructionsDTO;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportChainPreviewDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.variable.ImportVariablePreviewResult;
@@ -45,6 +45,9 @@ public class ImportPreviewResponse {
     @Builder.Default
     @Schema(description = "List of results by each service")
     private List<ImportSystemResult> systems = new ArrayList<>();
+    @Builder.Default
+    @Schema(description = "List of results by each context service")
+    private List<ImportSystemResult> contextService = new ArrayList<>();
     @Builder.Default
     @Schema(description = "List of results by each variable")
     private List<ImportVariablePreviewResult> variables = new ArrayList<>();

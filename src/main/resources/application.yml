@@ -8,14 +8,14 @@ server:
 spring:
   autoconfigure:
     exclude:
-    - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
-    - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
-    - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
-    - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
-    - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
-    - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
-    - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
-    - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
+      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+      - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
   main:
     allow-bean-definition-overriding: true
   profiles:
@@ -79,9 +79,22 @@ db:
         username: ${db.hikari.datasources.datasource.username}
         password: ${db.hikari.datasources.datasource.password}
         schema: ${spring.jpa.properties.hibernate.default_schema}
+        maximum-pool-size: ${PG_MAX_POOL_SIZE:30}
+        minimum-idle: ${PG_MIN_IDLE:0}
+        idle-timeout: ${PG_IDLE_TIMEOUT:300000}
+        leak-detection-threshold: ${PG_LEAK_DETECTION_INTERVAL:30000}
 
 consul:
   url: ${CONSUL_URL:http://consul:8500}
+  token: ${CONSUL_ADMIN_TOKEN}
+  keys:
+    prefix: /config/${NAMESPACE}
+    engine-config-root: /qip-engine-configurations
+    runtime-configurations: /runtime-configurations
+    chains: /chains
+    deployments-update: /deployments-update
+    engines-state: /engines-state
+    libraries-update: /libraries-update
 
 management:
   endpoints:
@@ -144,10 +157,34 @@ qip:
       protocol: http
       url: egress-gateway:8080
   engine:
-    app-check-custom-label: qip_engine_app  #need this label for domains resolution. Each new domain can have a fully custom deployment name
+    app-check-custom-label: qip_engine_app  # Need this label for domain resolution. Each new domain can have a fully custom deployment name
   control-plane:
     chain-routes-registration:
       ingress-gateways: ${QIP_REGISTER_INGRESS_CHAIN_ROUTES:true} # public/private/internal gateway
       egress-gateway: ${QIP_REGISTER_EGRESS_CHAIN_ROUTES:true}
   build:
     artifact-descriptor-version: ${ARTIFACT_DESCRIPTOR_VERSION:'0'}
+  json:
+    schemas:
+      chain: ${CHAIN_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/chain}
+      service: ${SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/service}
+      context-service: ${CONTEXT_SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/context-service}
+      specification-group: ${SPECIFICATION_GROUP_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/specification-group}
+      specification: ${SPECIFICATION_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/specification}
+  element-descriptors:
+    # These properties are injected in element descriptors
+    properties:
+      filter-header-allowlist-name: ${camel.constants.request-filter-header.name}
+
+protoc:
+  work-directory: /tmp/tmp-data
+  compiler: /usr/bin/protoc
+  grpc-java-plugin: /usr/bin/protoc-gen-grpc-java
+
+camel:
+  constants:
+    request-filter-header:
+      name: 'requestFilterHeaderAllowlist'
+
+app:
+  prefix: qip

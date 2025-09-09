@@ -12,14 +12,14 @@ name: Maven deploy snapshot
 on:
   push:
     branches-ignore:
-    - "main"
-    - "**release*"
-    - "prettier/**"
-    - "dependabot/**"
+      - "main"
+      - "**release*"
+      - "prettier/**"
+      - "dependabot/**"
     paths-ignore:
-    - "docs/**"
-    - "README.md"
-    - ".github/**"
+      - "docs/**"
+      - "README.md"
+      - ".github/**"
   workflow_dispatch: {}
 
 permissions:
@@ -27,12 +27,11 @@ permissions:
 
 jobs:
   mvn-snapshot-deploy:
-    uses: netcracker/qubership-workflow-hub/.github/workflows/re-maven-snapshot-deploy.yaml@main
+    uses: netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy/action.yaml@main
     with:
       java-version: "21"
       additional-mvn-args: ""
       target-store: "maven-central"
-    secrets:
       maven-username: ${{ secrets.MAVEN_USER }}
       maven-token: ${{ secrets.MAVEN_PASSWORD }}
       gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}

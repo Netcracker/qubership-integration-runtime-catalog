@@ -27,13 +27,11 @@ import io.swagger.v3.oas.annotations.media.SchemaProperty;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.catalog.exception.ChainDifferenceClientException;
-import org.qubership.integration.platform.catalog.mapping.EntityDiffResponseMapper;
-import org.qubership.integration.platform.catalog.model.dto.chain.EntityDifferenceResponse;
-import org.qubership.integration.platform.catalog.service.difference.ChainDifferenceRequest;
-import org.qubership.integration.platform.catalog.service.difference.EntityDifferenceResult;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceClientException;
+import org.qubership.integration.platform.runtime.catalog.model.dto.chain.EntityDifferenceResponse;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionStatus;
+import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.EntityDiffResponseMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ImportSession;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
@@ -42,6 +40,8 @@ import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimpo
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportSessionResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.mapper.ImportSessionMapper;
+import org.qubership.integration.platform.runtime.catalog.service.difference.ChainDifferenceRequest;
+import org.qubership.integration.platform.runtime.catalog.service.difference.EntityDifferenceResult;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.GeneralImportService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
@@ -141,6 +141,7 @@ public class ImportControllerV3 {
 
             boolean responseHasErrors = importResult.getChains().stream().anyMatch(chainResult -> ImportEntityStatus.ERROR.equals(chainResult.getStatus()))
                     || importResult.getSystems().stream().anyMatch(systemResult -> ImportSystemStatus.ERROR.equals(systemResult.getStatus()))
+                    || importResult.getContextService().stream().anyMatch(contextSystemResult -> ImportSystemStatus.ERROR.equals(contextSystemResult.getStatus()))
                     || importResult.getVariables().stream().anyMatch(variableResult -> ImportEntityStatus.ERROR.equals(variableResult.getStatus()))
                     || importResult.getInstructionsResult().stream().anyMatch(instructionResult -> ImportInstructionStatus.ERROR_ON_DELETE.equals(instructionResult.getStatus())
                     || ImportInstructionStatus.ERROR_ON_OVERRIDE.equals(instructionResult.getStatus()));

@@ -17,25 +17,25 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.catalog.context.RequestIdContext;
-import org.qubership.integration.platform.catalog.mapping.exportimport.instructions.GeneralInstructionsMapper;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.GeneralImportInstructionsConfig;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.instructions.ImportInstruction;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.catalog.service.difference.ChainDifferenceRequest;
-import org.qubership.integration.platform.catalog.service.difference.EntityDifferenceResult;
-import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
+import org.qubership.integration.platform.runtime.catalog.context.RequestIdContext;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainsAndInstructionsResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportContextServiceAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.GeneralImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.variable.ImportVariablesResult;
+import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.exportimport.instructions.GeneralInstructionsMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ImportSession;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.instructions.ImportInstruction;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportPreviewResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportRequest;
+import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
+import org.qubership.integration.platform.runtime.catalog.service.difference.ChainDifferenceRequest;
+import org.qubership.integration.platform.runtime.catalog.service.difference.EntityDifferenceResult;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
@@ -58,6 +58,7 @@ public class GeneralImportService {
 
     private final CommonVariablesImportService commonVariablesImportService;
     private final SystemExportImportService systemExportImportService;
+    private final ContextExportImportService contextExportImportService;
     private final ChainImportService chainImportService;
     private final ImportSessionService importSessionService;
     private final ActionsLogService actionsLogService;
@@ -68,7 +69,7 @@ public class GeneralImportService {
     public GeneralImportService(
             CommonVariablesImportService commonVariablesImportService,
             SystemExportImportService systemExportImportService,
-            ChainImportService chainImportService,
+            ContextExportImportService contextExportImportService, ChainImportService chainImportService,
             ImportSessionService importSessionService,
             ActionsLogService actionsLogService,
             ImportInstructionsService importInstructionsService,
@@ -76,6 +77,7 @@ public class GeneralImportService {
     ) {
         this.commonVariablesImportService = commonVariablesImportService;
         this.systemExportImportService = systemExportImportService;
+        this.contextExportImportService = contextExportImportService;
         this.chainImportService = chainImportService;
         this.importSessionService = importSessionService;
         this.actionsLogService = actionsLogService;
@@ -107,6 +109,7 @@ public class GeneralImportService {
                     .variables(commonVariablesImportService.getCommonVariablesImportPreview(unpackedDirectory))
                     .chains(chainImportService.getChainsImportPreview(unpackedDirectory, instructionsConfig.getChains()))
                     .systems(systemExportImportService.getSystemsImportPreview(unpackedDirectory, instructionsConfig.getServices()))
+                    .contextService(contextExportImportService.getContextServiceImportPreview(unpackedDirectory, instructionsConfig.getContextServices()))
                     .instructions(generalInstructionsMapper.asDTO(importInstructions))
                     .build();
         } finally {
@@ -155,15 +158,18 @@ public class GeneralImportService {
                     .importCommonVariables(unpackedDirectory, importRequest.getVariablesCommitRequest(), importId);
             ImportSystemsAndInstructionsResult importSystemsAndInstructionsResult = systemExportImportService
                     .importSystems(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId, technicalLabels);
+            ImportContextServiceAndInstructionsResult importChainsAndContextInstructionsResult = contextExportImportService.importContextService(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId);
             ImportChainsAndInstructionsResult importChainsAndInstructionsResult = chainImportService
                     .importChains(unpackedDirectory, importRequest.getChainCommitRequests(), importId, technicalLabels, validateByHash);
 
             importInstructionResults.addAll(importChainsAndInstructionsResult.instructionResults());
             importInstructionResults.addAll(importSystemsAndInstructionsResult.instructionResults());
+            importInstructionResults.addAll(importChainsAndContextInstructionsResult.instructionResults());
             importInstructionResults.addAll(variablesResult.getInstructions());
             return ImportResult.builder()
                     .chains(importChainsAndInstructionsResult.chainResults())
                     .systems(importSystemsAndInstructionsResult.importSystemResults())
+                    .contextService(importChainsAndContextInstructionsResult.importSystemResults())
                     .variables(variablesResult.getVariables())
                     .instructionsResult(importInstructionResults)
                     .build();

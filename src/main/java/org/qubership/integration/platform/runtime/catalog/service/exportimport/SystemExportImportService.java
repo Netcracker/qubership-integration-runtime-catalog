@@ -18,34 +18,32 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionAction;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionsConfig;
-import org.qubership.integration.platform.catalog.model.system.EnvironmentLabel;
-import org.qubership.integration.platform.catalog.model.system.IntegrationSystemType;
-import org.qubership.integration.platform.catalog.model.system.SystemModelSource;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.AbstractLabel;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.system.*;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServicesNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.IgnoreResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionAction;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
+import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentLabel;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
+import org.qubership.integration.platform.runtime.catalog.model.system.SystemModelSource;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSystemObject;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractLabel;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.SystemDeserializationResult;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.remote.SystemCompareAction;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions.ServicesNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportMode;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.system.SystemsCommitRequest;
+import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
@@ -74,8 +72,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Objects.isNull;
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.ZIP_EXTENSION;
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils.*;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ZIP_EXTENSION;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils.*;
 import static org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED;
 
 @Service
@@ -167,7 +165,7 @@ public class SystemExportImportService {
             }
 
             return exportedSystem;
-        } catch (JsonProcessingException | IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             String systemId = system != null && system.getId() != null ? "with system id: " + system.getId() + " " : "";
             String errMessage = "Error while serializing system " + systemId + e.getMessage();
             log.error(errMessage);
@@ -256,7 +254,7 @@ public class SystemExportImportService {
         String systemName = null;
 
         try {
-            ObjectNode serviceNode = getFileNode(mainSystemFile);
+            JsonNode serviceNode = yamlMapper.readTree(mainSystemFile);
             SystemDeserializationResult deserializationResult = getBaseSystemDeserializationResult(serviceNode);
             IntegrationSystem baseSystem = deserializationResult.getSystem();
             systemId = baseSystem.getId();
@@ -286,7 +284,7 @@ public class SystemExportImportService {
     }
 
     private void setCompareSystemResult(IntegrationSystem system, ImportSystemResult resultSystemCompareDTO) {
-        IntegrationSystem oldSystem = systemService.getByIdOrNull(system.getId());;
+        IntegrationSystem oldSystem = systemService.getByIdOrNull(system.getId());
         if (oldSystem == null) {
             resultSystemCompareDTO.setName(system.getName());
             resultSystemCompareDTO.setRequiredAction(SystemCompareAction.CREATE);
@@ -411,21 +409,18 @@ public class SystemExportImportService {
         Optional<IntegrationSystem> baseSystemOptional = Optional.empty();
 
         try {
-            ObjectNode serviceNode = getFileNode(mainServiceFile);
+            JsonNode serviceNode = yamlMapper.readTree(mainServiceFile);
             SystemDeserializationResult deserializationResult = getBaseSystemDeserializationResult(serviceNode);
             baseSystemOptional = Optional.ofNullable(deserializationResult.getSystem());
 
             result = transactionTemplate.execute((status) -> {
-                File serviceDirectory = mainServiceFile.getParentFile();
                 IntegrationSystem baseSystem = deserializationResult.getSystem();
 
                 if (!CollectionUtils.isEmpty(systemIds) && !systemIds.contains(baseSystem.getId())) {
                     return null;
                 }
 
-                deserializationResult.setSystem(serviceDeserializer.deserializeSystem(
-                        serviceNode, serviceDirectory));
-
+                deserializationResult.setSystem(serviceDeserializer.deserializeSystem(mainServiceFile));
 
                 StringBuilder message = new StringBuilder();
                 ImportSystemStatus importStatus = enrichAndSaveIntegrationSystem(deserializationResult, deployLabel, technicalLabels, message::append);
@@ -560,7 +555,7 @@ public class SystemExportImportService {
             newSystem.setLabels(oldSystem.getLabels());
             return;
         }
-        Set<String> existingLabelNames = oldSystem.getLabels().stream().filter(l -> !l.isTechnical()).map(l -> l.getName()).collect(Collectors.toSet());
+        Set<String> existingLabelNames = oldSystem.getLabels().stream().filter(l -> !l.isTechnical()).map(AbstractLabel::getName).collect(Collectors.toSet());
         newSystem.getLabels().removeIf(l -> !l.isTechnical() && existingLabelNames.contains(l.getName()));
         newSystem.addLabels(oldSystem.getLabels().stream().filter(l -> !l.isTechnical()).collect(Collectors.toSet()));
     }
@@ -693,7 +688,7 @@ public class SystemExportImportService {
         if (CollectionUtils.isEmpty(specification.getLabels())) {
             specification.setLabels(new HashSet<>());
         }
-        Set<String> existingLabelNames = specification.getLabels().stream().filter(l -> !l.isTechnical()).map(l -> l.getName()).collect(Collectors.toSet());
+        Set<String> existingLabelNames = specification.getLabels().stream().filter(l -> !l.isTechnical()).map(AbstractLabel::getName).collect(Collectors.toSet());
         newLabels = new HashSet<>(newLabels);
         newLabels.removeIf(l -> l.isTechnical() || existingLabelNames.contains(l.getName()));
         specification.addLabels(newLabels);
@@ -706,7 +701,7 @@ public class SystemExportImportService {
         if (CollectionUtils.isEmpty(specGroup.getLabels())) {
             specGroup.setLabels(new HashSet<>());
         }
-        Set<String> existingLabelNames = specGroup.getLabels().stream().filter(l -> !l.isTechnical()).map(l -> l.getName()).collect(Collectors.toSet());
+        Set<String> existingLabelNames = specGroup.getLabels().stream().filter(l -> !l.isTechnical()).map(AbstractLabel::getName).collect(Collectors.toSet());
         newLabels = new HashSet<>(newLabels);
         newLabels.removeIf(l -> l.isTechnical() || existingLabelNames.contains(l.getName()));
         specGroup.addLabels(newLabels);
@@ -830,15 +825,16 @@ public class SystemExportImportService {
     protected SystemDeserializationResult getBaseSystemDeserializationResult(JsonNode serviceNode) throws JsonProcessingException {
         SystemDeserializationResult result = new SystemDeserializationResult();
 
-        String systemId = serviceNode.get(AbstractSystemEntity.Fields.id) != null ? serviceNode.get(AbstractSystemEntity.Fields.id).asText(null) : null;
-        if (systemId == null) {
-            throw new RuntimeException("Missing id field in system file");
-        }
+        String systemId = Optional.ofNullable(serviceNode.get("id")).map(JsonNode::asText)
+                .orElseThrow(() -> new RuntimeException("Missing id field in system file"));
+        String systemName = Optional.ofNullable(serviceNode.get("name")).map(JsonNode::asText).orElse("");
 
-        String systemName = serviceNode.get(AbstractSystemEntity.Fields.name) != null ? serviceNode.get(AbstractSystemEntity.Fields.name).asText("") : "";
-
-        Timestamp modifiedWhen = serviceNode.get(AbstractSystemEntity.Fields.modifiedWhen) != null
-                ? new Timestamp(serviceNode.get(AbstractSystemEntity.Fields.modifiedWhen).asLong()) : null;
+        Timestamp modifiedWhen = Optional.ofNullable(serviceNode.get("context"))
+                .map(node -> node.get("modifiedWhen"))
+                .or(()  -> Optional.ofNullable(serviceNode.get("modifiedWhen")))
+                .map(JsonNode::asLong)
+                .map(Timestamp::new)
+                .orElse(null);
 
         IntegrationSystem baseSystem = new IntegrationSystem();
         baseSystem.setId(systemId);
@@ -848,10 +844,6 @@ public class SystemExportImportService {
         result.setSystem(baseSystem);
 
         return result;
-    }
-
-    protected ObjectNode getFileNode(File file) throws IOException {
-        return (ObjectNode) yamlMapper.readTree(file);
     }
 
     public void logSystemExportImport(IntegrationSystem system, String archiveName, LogOperation operation) {

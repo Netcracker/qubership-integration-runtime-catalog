@@ -18,22 +18,25 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.catalog.service.exportimport.ExportImportUtils;
-import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedIntegrationSystem;
-import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecification;
-import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecificationGroup;
-import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecificationSource;
+import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.*;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.util.zip.ZipOutputStream;
+
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.RESOURCES_FOLDER_PREFIX;
 
 @Slf4j
 @Component
 public class ExportableObjectWriterVisitor {
 
     private final YAMLMapper yamlMapper;
+
+    @Value("${app.prefix}")
+    private String appName;
 
     @Autowired
     public ExportableObjectWriterVisitor(YAMLMapper yamlExportImportMapper) {
@@ -42,21 +45,21 @@ public class ExportableObjectWriterVisitor {
 
     public void visit(ExportedIntegrationSystem exportedIntegrationSystem, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
-                entryPath + ExportImportUtils.generateMainSystemFileExportName(exportedIntegrationSystem.getId()),
+                entryPath + ExportImportUtils.generateMainSystemFileExportName(exportedIntegrationSystem.getId(), appName),
                 yamlMapper.writeValueAsString(exportedIntegrationSystem.getObjectNode()));
     }
 
     public void visit(ExportedSpecificationGroup exportedSpecificationGroup, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
                 entryPath
-                        + ExportImportUtils.generateSpecificationGroupFileExportName(exportedSpecificationGroup.getId()),
+                        + ExportImportUtils.generateSpecificationGroupFileExportName(exportedSpecificationGroup.getId(), appName),
                 yamlMapper.writeValueAsString(exportedSpecificationGroup.getObjectNode()));
     }
 
     public void visit(ExportedSpecification exportedSpecification, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
                 entryPath
-                        + ExportImportUtils.generateSpecificationFileExportName(exportedSpecification.getId()),
+                        + ExportImportUtils.generateSpecificationFileExportName(exportedSpecification.getId(), appName),
                 yamlMapper.writeValueAsString(exportedSpecification.getObjectNode()));
     }
 
@@ -66,7 +69,13 @@ public class ExportableObjectWriterVisitor {
             return;
         }
 
-        ExportImportUtils.writeSystemObject(zipOut, entryPath + exportedSpecificationSource.getName(),
+        ExportImportUtils.writeSystemObject(zipOut, entryPath + RESOURCES_FOLDER_PREFIX + exportedSpecificationSource.getName(),
                 exportedSpecificationSource.getSource());
+    }
+
+    public void visit(ExportedContextService exportedContextService, ZipOutputStream zipOut, String entryPath) throws IOException {
+        ExportImportUtils.writeSystemObject(zipOut,
+                entryPath + ExportImportUtils.generateMainContextServiceFileExportName(exportedContextService.getId(), appName),
+                yamlMapper.writeValueAsString(exportedContextService.getObjectNode()));
     }
 }

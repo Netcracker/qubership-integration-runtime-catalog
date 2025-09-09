@@ -16,41 +16,41 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.catalog.exception.ChainDifferenceClientException;
-import org.qubership.integration.platform.catalog.exception.ChainDifferenceException;
-import org.qubership.integration.platform.catalog.exception.ComparisonEntityNotFoundException;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.ChainImportInstructionsConfig;
-import org.qubership.integration.platform.catalog.model.exportimport.instructions.ImportInstructionAction;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.ActionLog;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.EntityType;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.actionlog.LogOperation;
-import org.qubership.integration.platform.catalog.persistence.configs.entity.chain.*;
-import org.qubership.integration.platform.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.catalog.service.difference.ChainDifferenceRequest;
-import org.qubership.integration.platform.catalog.service.difference.ChainDifferenceService;
-import org.qubership.integration.platform.catalog.service.difference.EntityDifferenceResult;
-import org.qubership.integration.platform.catalog.util.ChainUtils;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceClientException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainImportException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ComparisonEntityNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.*;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainsIgnoreOverrideResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionAction;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.*;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportChainPreviewDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequestAction;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.exception.exceptions.ChainImportException;
 import org.qubership.integration.platform.runtime.catalog.service.*;
+import org.qubership.integration.platform.runtime.catalog.service.difference.ChainDifferenceRequest;
+import org.qubership.integration.platform.runtime.catalog.service.difference.ChainDifferenceService;
+import org.qubership.integration.platform.runtime.catalog.service.difference.EntityDifferenceResult;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ChainDeployPrepare;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.MigrationException;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ImportFileMigrationUtils;
+import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
+import org.qubership.integration.platform.runtime.catalog.util.ChainUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.NonNull;
@@ -60,15 +60,13 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.*;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.catalog.model.constant.CamelOptions.SYSTEM_ID;
-import static org.qubership.integration.platform.catalog.service.exportimport.ExportImportConstants.*;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_VERSION_FIELD_OLD;
+import static java.util.Objects.nonNull;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.CONTEXT_SYSTEM_ID;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SYSTEM_ID;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
 
 @Slf4j
 @Service
@@ -78,8 +76,8 @@ public class ChainImportService {
 
     private final YAMLMapper yamlMapper;
     private final TransactionTemplate transactionTemplate;
-    private final Map<Integer, ChainImportFileMigration> chainImportFileMigrations;
     private final ChainService chainService;
+    private final ChainFinderService chainFinderService;
     private final FolderService folderService;
     private final SnapshotService snapshotService;
     private final DeploymentService deploymentService;
@@ -92,16 +90,20 @@ public class ChainImportService {
     private final MaskedFieldsService maskedFieldsService;
     private final ChainDifferenceService chainDifferenceService;
     private final ImportInstructionsService importInstructionsService;
+    private final FileMigrationService fileMigrationService;
+    private final Collection<ChainImportFileMigration> chainImportFileMigrations;
 
     @Value("${qip.build.artifact-descriptor-version}")
     private String artifactDescriptorVersion;
+    @Value("${app.prefix}")
+    private String appName;
 
     @Autowired
     public ChainImportService(
             YAMLMapper yamlMapper,
             TransactionTemplate transactionTemplate,
-            List<ChainImportFileMigration> chainImportFileMigrations,
             ChainService chainService,
+            ChainFinderService chainFinderService,
             FolderService folderService,
             SnapshotService snapshotService,
             DeploymentService deploymentService,
@@ -113,13 +115,14 @@ public class ChainImportService {
             ElementService elementService,
             MaskedFieldsService maskedFieldsService,
             ChainDifferenceService chainDifferenceService,
-            ImportInstructionsService importInstructionsService
+            ImportInstructionsService importInstructionsService,
+            FileMigrationService fileMigrationService,
+            Collection<ChainImportFileMigration> chainImportFileMigrations
     ) {
         this.yamlMapper = yamlMapper;
         this.transactionTemplate = transactionTemplate;
-        this.chainImportFileMigrations = chainImportFileMigrations.stream()
-                .collect(Collectors.toMap(ChainImportFileMigration::getVersion, Function.identity()));
         this.chainService = chainService;
+        this.chainFinderService = chainFinderService;
         this.folderService = folderService;
         this.snapshotService = snapshotService;
         this.deploymentService = deploymentService;
@@ -132,6 +135,8 @@ public class ChainImportService {
         this.maskedFieldsService = maskedFieldsService;
         this.chainDifferenceService = chainDifferenceService;
         this.importInstructionsService = importInstructionsService;
+        this.fileMigrationService = fileMigrationService;
+        this.chainImportFileMigrations = chainImportFileMigrations;
     }
 
     public List<ImportChainPreviewDTO> getChainsImportPreview(File importDirectory, ChainImportInstructionsConfig instructionsConfig) {
@@ -180,7 +185,7 @@ public class ChainImportService {
 
         if (diffRequest.getLeftSnapshotId() == null) {
             return chainDifferenceService.findChainsDifferences(
-                    chainService.tryFindById(diffRequest.getLeftChainId())
+                    chainFinderService.tryFindById(diffRequest.getLeftChainId())
                             .orElseThrow(() -> new ComparisonEntityNotFoundException("Can't find chain with id: " + diffRequest.getLeftChainId())),
                     rightChain
             );
@@ -215,7 +220,7 @@ public class ChainImportService {
             String chainYaml = migrateToActualFileVersion(Files.readString(chainYAMLFile.toPath()));
             ChainExternalEntity chainExternalEntity = yamlMapper.readValue(chainYaml, ChainExternalEntity.class);
             Set<String> usedSystemIds = new HashSet<>();
-            collectUsedSystemIds(chainExternalEntity.getElements(), usedSystemIds);
+            collectUsedSystemIds(chainExternalEntity.getContent().getElements(), usedSystemIds);
             Boolean chainExists = chainService.exists(chainExternalEntity.getId());
             ImportInstructionAction instructionAction = null;
             if (importInstructionsConfig.getIgnore().contains(chainExternalEntity.getId())) {
@@ -228,8 +233,8 @@ public class ChainImportService {
                     .id(chainExternalEntity.getId())
                     .name(chainExternalEntity.getName())
                     .usedSystems(usedSystemIds)
-                    .deployments(chainExternalEntity.getDeployments())
-                    .deployAction(chainExternalEntity.getDeployAction())
+                    .deployments(chainExternalEntity.getContent().getDeployments())
+                    .deployAction(chainExternalEntity.getContent().getDeployAction())
                     .instructionAction(instructionAction)
                     .exists(chainExists)
                     .build();
@@ -255,8 +260,12 @@ public class ChainImportService {
             }
 
             String integrationSystemId = (String) elementExternalEntity.getProperties().get(SYSTEM_ID);
+            String contextSystemId = (String) elementExternalEntity.getProperties().get(CONTEXT_SYSTEM_ID);
             if (integrationSystemId != null) {
                 usedSystemIds.add(integrationSystemId);
+            }
+            if (contextSystemId != null) {
+                usedSystemIds.add(contextSystemId);
             }
         }
     }
@@ -357,16 +366,16 @@ public class ChainImportService {
                 if (overridesPair != null) {
                     technicalLabels = technicalLabels != null ? new HashSet<>(technicalLabels) : new HashSet<>();
                     if (chainId.equals(overridesPair.getKey())) {
-                        chainExternalEntity.setOverridesChainId(overridesPair.getValue());
+                        chainExternalEntity.getContent().setOverridesChainId(overridesPair.getValue());
                         technicalLabels.add(OVERRIDES_LABEL_NAME);
                     }
                     if (chainId.equals(overridesPair.getValue())) {
-                        chainExternalEntity.setOverridden(true);
-                        chainExternalEntity.setOverriddenByChainId(overridesPair.getKey());
+                        chainExternalEntity.getContent().setOverridden(true);
+                        chainExternalEntity.getContent().setOverriddenByChainId(overridesPair.getKey());
                         technicalLabels.add(OVERRIDDEN_LABEL_NAME);
                     }
                 }
-                chainExternalEntity.setLastImportHash(externalHash);
+                chainExternalEntity.getContent().setLastImportHash(externalHash);
                 importChainResult = saveChainInTransaction(chainExternalEntity, chainFilesDir, technicalLabels);
             }
         } catch (ChainImportException e) {
@@ -403,12 +412,16 @@ public class ChainImportService {
     }
 
     public ImportChainResult saveImportedChain(ChainExternalEntity chainExternalEntity, File chainFilesDir, Set<String> technicalLabels) {
-        Chain currentChainState = chainService.tryFindById(chainExternalEntity.getId()).orElse(null);
+        Chain currentChainState = chainFinderService.tryFindById(chainExternalEntity.getId()).orElse(null);
         ImportEntityStatus importStatus = currentChainState != null ? ImportEntityStatus.UPDATED : ImportEntityStatus.CREATED;
 
         Folder existingFolder = null;
-        if (chainExternalEntity.getFolder() != null) {
-            existingFolder = folderService.findFirstByName(chainExternalEntity.getFolder().getName(), null);
+        if (chainExternalEntity.getContent().getFolder() != null) {
+            existingFolder = folderService.findFirstByName(chainExternalEntity.getContent().getFolder().getName(), null);
+            if (existingFolder == null) {
+                existingFolder = Folder.builder().name(chainExternalEntity.getContent().getFolder().getName()).build();
+                existingFolder = folderService.save(existingFolder, (String) null);
+            }
         }
 
         Chain newChainState = chainExternalEntityMapper.toInternalEntity(ChainExternalMapperEntity.builder()
@@ -431,8 +444,8 @@ public class ChainImportService {
         return ImportChainResult.builder()
                 .id(newChainState.getId())
                 .name(newChainState.getName())
-                .deployAction(chainExternalEntity.getDeployAction())
-                .deployments(chainExternalEntity.getDeployments())
+                .deployAction(chainExternalEntity.getContent().getDeployAction())
+                .deployments(chainExternalEntity.getContent().getDeployments())
                 .status(importStatus)
                 .build();
     }
@@ -452,80 +465,21 @@ public class ChainImportService {
     }
 
     protected String migrateToActualFileVersion(String fileContent) throws Exception {
-        ObjectNode fileNode = (ObjectNode) yamlMapper.readTree(fileContent);
-        String chainId = Optional.ofNullable(fileNode.get("id")).map(JsonNode::asText).orElse(null);
-
-        if ((!fileNode.has(IMPORT_VERSION_FIELD_OLD) && !fileNode.has(IMPORT_MIGRATIONS_FIELD))
-            ||
-            (fileNode.has(IMPORT_VERSION_FIELD_OLD) && fileNode.get(IMPORT_VERSION_FIELD_OLD) != null
-             &&
-             fileNode.has(IMPORT_MIGRATIONS_FIELD) && fileNode.get(IMPORT_MIGRATIONS_FIELD) != null)
-        ) {
-            log.error(
-                    "Incorrect combination of \"{}\" and \"{}\" fields for a chain migration data for chain id : {}",
-                    IMPORT_VERSION_FIELD_OLD,
-                    IMPORT_MIGRATIONS_FIELD,
-                    chainId);
-            throw new Exception("Incorrect combination of fields for a chain migration data for chain id : " + chainId);
+        try {
+            return fileMigrationService.migrate(fileContent, chainImportFileMigrations.stream().map(ImportFileMigration.class::cast).toList());
+        } catch (MigrationException exception) {
+            String message = nonNull(exception.getEntityId())
+                    ? String.format("Failed to migrate data for chain %s (%s): %s",
+                    exception.getEntityName(), exception.getEntityId(), exception.getMessage())
+                    : String.format("Failed to migrate data for chain: %s", exception.getMessage());
+            throw new ChainImportException(exception.getEntityId(), exception.getEntityName(), message);
         }
-
-        List<Integer> importVersions;
-        if (fileNode.has(IMPORT_VERSION_FIELD_OLD)) {
-            importVersions =
-                    IntStream.rangeClosed(1, fileNode.get(IMPORT_VERSION_FIELD_OLD).asInt())
-                            .boxed()
-                            .toList();
-        } else {
-            importVersions =
-                    fileNode.get(IMPORT_MIGRATIONS_FIELD) != null
-                            ? Arrays.stream(
-                                    fileNode.get(IMPORT_MIGRATIONS_FIELD)
-                                            .asText()
-                                            .replaceAll("[\\[\\]]", "")
-                                            .split(","))
-                                .map(String::trim)
-                                .filter(StringUtils::isNotEmpty)
-                                .map(Integer::parseInt)
-                                .toList()
-                            : new ArrayList<>();
-        }
-        log.trace("importVersions = {}", importVersions);
-
-        List<Integer> actualVersions = ImportFileMigrationUtils.getActualChainFileMigrationVersions();
-        log.trace("actualVersions = {}", actualVersions);
-
-        List<Integer> nonexistentVersions = new ArrayList<>(importVersions);
-        nonexistentVersions.removeAll(actualVersions);
-        if (!nonexistentVersions.isEmpty()) {
-            String chainName = Optional.ofNullable(fileNode.get("name")).map(JsonNode::asText).orElse(null);
-
-            log.error(
-                    "Unable to import a chain {} ({}) exported from newer version: nonexistent migrations {} are present",
-                    chainName,
-                    chainId,
-                    nonexistentVersions);
-
-            throw new ChainImportException(
-                    chainId,
-                    chainName,
-                    "Unable to import a chain exported from newer version");
-        }
-
-        List<Integer> versionsToMigrate = new ArrayList<>(actualVersions);
-        versionsToMigrate.removeAll(importVersions);
-        versionsToMigrate.sort(null);
-        log.trace("versionsToMigrate = {}", versionsToMigrate);
-
-        for (int version : versionsToMigrate) {
-            fileNode = chainImportFileMigrations.get(version).makeMigration(fileNode);
-        }
-
-        return yamlMapper.writeValueAsString(fileNode);
     }
 
     private File getChainYAMLFile(File chainDir) {
         File[] chainFiles = chainDir.listFiles((dir, fileName) ->
-                fileName.startsWith(CHAIN_YAML_NAME_PREFIX) && fileName.endsWith(YAML_FILE_NAME_POSTFIX));
+                (fileName.startsWith(CHAIN_YAML_NAME_PREFIX) && fileName.endsWith(YAML_FILE_NAME_POSTFIX))
+                        || fileName.endsWith(CHAIN_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX));
 
         if (ArrayUtils.isEmpty(chainFiles)) {
             throw new RuntimeException("Directory " + chainDir.getName() + " does not contain chain YAML file");
@@ -683,7 +637,7 @@ public class ChainImportService {
      */
     @Deprecated(since = "2023.4")
     public void saveImportedChainBackward(Chain importedChain) {
-        Chain currentChainState = chainService.tryFindById(importedChain.getId()).orElse(null);
+        Chain currentChainState = chainFinderService.tryFindById(importedChain.getId()).orElse(null);
         Folder existingFolder = null;
         if (importedChain.getParentFolder() != null) {
             existingFolder = folderService.findEntityByIdOrNull(importedChain.getParentFolder().getId());
