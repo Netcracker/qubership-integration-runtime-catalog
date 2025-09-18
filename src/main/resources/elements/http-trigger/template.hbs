@@ -100,9 +100,29 @@
         {{/if-property}}
 
         {{#if-property 'accessControlType' equals='ABAC'}}
-            {{#if-property 'abacResource' presented=''}}
-                <setProperty name="internalProperty_abacResource">
-                    <constant>{{escape (property 'abacResource')}}</constant>
+            {{#if-property 'abacResourceType' presented=''}}
+                <setProperty name="internalProperty_abacResourceType">
+                    <constant>{{escape (property 'abacResourceType')}}</constant>
+                </setProperty>
+            {{/if-property}}
+            {{#if-property 'abacOperation' presented=''}}
+                <setProperty name="internalProperty_abacOperation">
+                    <constant>{{escape (property 'abacOperation')}}</constant>
+                </setProperty>
+            {{/if-property}}
+            {{#if-property 'abacResourceDataType' presented=''}}
+                <setProperty name="internalProperty_abacResourceDataType">
+                    <constant>{{escape (property 'abacResourceDataType')}}</constant>
+                </setProperty>
+            {{/if-property}}
+            {{#if-property 'abacResourceString' presented=''}}
+                <setProperty name="internalProperty_abacResourceString">
+                    <constant>{{escape (property 'abacResourceString')}}</constant>
+                </setProperty>
+            {{/if-property}}
+            {{#if-property 'abacResourceMap' presented=''}}
+                <setProperty name="internalProperty_abacResourceMap">
+                    <constant>{{escape (property 'abacResourceMap')}}</constant>
                 </setProperty>
             {{/if-property}}
             <policy ref="abacPolicy">
