@@ -116,14 +116,21 @@ public class GenerateURLHelper {
             return result.toString();
         }
 
+        Object sendEmptyParamsProperty = element.getProperty(CamelOptions.SEND_EMPTY_QUERY_PARAMS);
+        boolean sendEmptyParams = sendEmptyParamsProperty != null
+            ? Boolean.parseBoolean(String.valueOf(sendEmptyParamsProperty))
+            : true;
+
         for (String key : map.keySet()) {
-            if (!StringUtils.isEmpty(map.get(key))) {
+            String value = map.get(key);
+            boolean shouldIncludeParam = sendEmptyParams || !StringUtils.isEmpty(value);
+            if (shouldIncludeParam) {
                 if (result.length() == 0) {
                     result.append("?");
                 } else {
                     result.append("&");
                 }
-                result.append(key).append("=").append(map.get(key));
+                result.append(key).append("=").append(value != null ? value : "");
             }
         }
         return result.toString();
