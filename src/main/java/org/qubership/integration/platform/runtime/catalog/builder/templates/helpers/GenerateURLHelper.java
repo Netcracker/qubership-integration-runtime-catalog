@@ -123,7 +123,7 @@ public class GenerateURLHelper {
 
         for (String key : map.keySet()) {
             String value = map.get(key);
-            boolean shouldIncludeParam = sendEmptyParams || !StringUtils.isEmpty(value);
+            boolean shouldIncludeParam = sendEmptyParams || !isValueEmpty(value);
             if (shouldIncludeParam) {
                 if (result.length() == 0) {
                     result.append("?");
@@ -134,5 +134,14 @@ public class GenerateURLHelper {
             }
         }
         return result.toString();
+    }
+
+    private boolean isValueEmpty(String value) {
+        if (StringUtils.isEmpty(value)) {
+            return true;
+        }
+        // Handles special cases where values are string representations of empty/null values
+        String trimmed = value.trim();
+        return "null".equals(trimmed) || "undefined".equals(trimmed);
     }
 }
