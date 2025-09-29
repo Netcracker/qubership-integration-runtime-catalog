@@ -127,7 +127,7 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
     public ChainExternalMapperEntity toExternalEntity(@NonNull Chain chain) {
         ChainElementsExternalMapperEntity elementsExternalMapperEntity = chainElementsMapper.toExternalEntity(chain.getElements());
         List<DeploymentExternalEntity> deployments = extractChainDeployments(chain);
-        
+
         ChainExternalEntity chainExternalEntity = ChainExternalEntity.builder()
                 .schema(chainSchemaUri)
                 .id(chain.getId())
@@ -149,8 +149,7 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                                 .toList()
                                 .toString())
                         .deployments(deployments)
-                        .deployAction(CollectionUtils.isEmpty(deployments) ? ChainCommitRequestAction.SNAPSHOT
-                                : ChainCommitRequestAction.DEPLOY)
+                        .deployAction(extractDeployAction(chain))
                         .build())
                 .build();
 
@@ -160,13 +159,26 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                 .build();
     }
 
-    private List<DeploymentExternalEntity> extractChainDeployments(Chain chain) {
-        List<DeploymentExternalEntity> deploymentsForExport = new ArrayList<>();
+    private ChainCommitRequestAction extractDeployAction(Chain chain) {
+        ChainCommitRequestAction result = ChainCommitRequestAction.NONE;
 
-        chain.getDeployments().forEach(deployment -> deploymentsForExport.add(DeploymentExternalEntity.builder()
-                .domain(deployment.getDomain())
-                .build()));
-        return deploymentsForExport;
+        if (chain.getDeployments().size() > 0) {
+            result = ChainCommitRequestAction.DEPLOY;
+        } else if (chain.getSnapshots().size() > 0) {
+            result = ChainCommitRequestAction.SNAPSHOT;
+        }
+
+        return result;
+    }
+
+    private List<DeploymentExternalEntity> extractChainDeployments(Chain chain) {
+        if (chain.getDeployments().size() == 0) {
+            return Collections.singletonList(DeploymentExternalEntity.builder().domain("default").build());
+        } else {
+            return chain.getDeployments().stream().map(deployment -> DeploymentExternalEntity.builder()
+                    .domain(deployment.getDomain()).build())
+                    .collect(Collectors.toList());
+        }
     }
 
     private void specifyChainSwimlanes(ChainExternalEntity externalChain, Chain resultChain) {
