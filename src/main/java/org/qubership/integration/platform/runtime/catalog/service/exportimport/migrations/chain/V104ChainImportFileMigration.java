@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Component;
@@ -29,14 +30,23 @@ public class V104ChainImportFileMigration implements ChainImportFileMigration {
                 if (elemType != null && "http-trigger".equals(elemType.asText())) {
                     ObjectNode properties = (ObjectNode) element.get(PROPERTIES);
                     if (properties.has("accessControlType") && "ABAC".equals(properties.get("accessControlType").asText())) {
-                        if (!properties.has("abacResourceType")) {
-                            properties.put("abacResourceType", "CHAIN");
+                        ObjectNode abacParameters = (ObjectNode) properties.get("abacParameters");
+
+                        if (abacParameters == null) {
+                            ObjectMapper mapper = new ObjectMapper();
+                            abacParameters = mapper.createObjectNode();
+
+                            properties.set("abacParameters", abacParameters);
                         }
-                        if (!properties.has("abacOperation")) {
-                            properties.put("abacOperation", "ALL");
+
+                        if (!abacParameters.has("resourceType")) {
+                            abacParameters.put("resourceType", "CHAIN");
                         }
-                        if (!properties.has("abacResourceDataType")) {
-                            properties.put("abacResourceDataType", "String");
+                        if (!abacParameters.has("operation")) {
+                            abacParameters.put("operation", "ALL");
+                        }
+                        if (!abacParameters.has("resourceDataType")) {
+                            abacParameters.put("resourceDataType", "String");
                         }
                     }
                 }
