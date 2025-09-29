@@ -6,7 +6,7 @@ SET properties =
                '"CHAIN"'
             )
 WHERE e.type = 'http-trigger'
-  AND e.accessControlType = 'ABAC'
+  AND e.properties->>'accessControlType' = 'ABAC'
   AND e.properties->'abacParameters'->>'resourceType' IS NULL;
 
 
@@ -18,7 +18,7 @@ SET properties =
                 '"CHAIN"'
             )
 WHERE e.type = 'http-trigger'
-  AND e.accessControlType = 'ABAC'
+  AND e.properties->>'accessControlType' = 'ABAC'
   AND e.properties->'abacParameters'->>'operation' IS NULL;
 
 
@@ -30,6 +30,6 @@ SET properties =
                 '"CHAIN"'
             )
 WHERE e.type = 'http-trigger'
-  AND e.accessControlType = 'ABAC'
+  AND e.properties->>'accessControlType' = 'ABAC'
   AND e.properties->'abacParameters'->>'resourceDataType' IS NULL;
 
