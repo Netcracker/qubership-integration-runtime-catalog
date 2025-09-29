@@ -100,29 +100,29 @@
         {{/if-property}}
 
         {{#if-property 'accessControlType' equals='ABAC'}}
-            {{#if-property 'abacResourceType' presented=''}}
-                <setProperty name="internalProperty_abacResourceType">
-                    <constant>{{escape (property 'abacResourceType')}}</constant>
+            {{#if-property 'resourceType' presented=''}}
+                <setProperty name="internalProperty_resourceType">
+                    <constant>{{escape (property 'resourceType')}}</constant>
                 </setProperty>
             {{/if-property}}
-            {{#if-property 'abacOperation' presented=''}}
-                <setProperty name="internalProperty_abacOperation">
-                    <constant>{{escape (property 'abacOperation')}}</constant>
+            {{#if-property 'operation' presented=''}}
+                <setProperty name="internalProperty_operation">
+                    <constant>{{escape (property 'operation')}}</constant>
                 </setProperty>
             {{/if-property}}
-            {{#if-property 'abacResourceDataType' presented=''}}
-                <setProperty name="internalProperty_abacResourceDataType">
-                    <constant>{{escape (property 'abacResourceDataType')}}</constant>
+            {{#if-property 'resourceDataType' presented=''}}
+                <setProperty name="internalProperty_resourceDataType">
+                    <constant>{{escape (property 'resourceDataType')}}</constant>
                 </setProperty>
             {{/if-property}}
-            {{#if-property 'abacResourceString' presented=''}}
-                <setProperty name="internalProperty_abacResourceString">
-                    <constant>{{escape (property 'abacResourceString')}}</constant>
+            {{#if-property 'resourceString' presented=''}}
+                <setProperty name="internalProperty_resourceString">
+                    <constant>{{escape (property 'resourceString')}}</constant>
                 </setProperty>
             {{/if-property}}
-            {{#if-property 'abacResourceMap' presented=''}}
-                <setProperty name="internalProperty_abacResourceMap">
-                    <constant>{{escape (property 'abacResourceMap')}}</constant>
+            {{#if-property 'resourceMap' presented=''}}
+                <setProperty name="internalProperty_resourceMap">
+                    <constant>{{escape (property 'resourceMap')}}</constant>
                 </setProperty>
             {{/if-property}}
             <policy ref="abacPolicy">

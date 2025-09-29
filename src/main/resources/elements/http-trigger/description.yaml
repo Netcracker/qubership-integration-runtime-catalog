@@ -89,23 +89,23 @@ properties:
         - RBAC
         - ABAC
         default: RBAC
-    -   name: abacResourceType
+    -   name: resourceType
         description: ABAC resource type, by default set as CHAIN
         title: Resource Type
         type: string
-    -   name: abacOperation
+    -   name: operation
         description: ABAC operation, by default set as ALL
         title: Operation
         type: string
-    -   name: abacResourceDataType
+    -   name: resourceDataType
         description: ABAC Resource Data Type, could be String or Map
         title: Resource Data Type
         type: string
-    -   name: abacResourceString
+    -   name: resourceString
         description: ABAC resource string, usually the same as the trigger URI
         title: Resource String
         type: string
-    -   name: abacResourceMap
+    -   name: resourceMap
         description: ABAC resource map
         title: Resource Map
         type: string

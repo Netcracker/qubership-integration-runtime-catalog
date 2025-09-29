@@ -7,9 +7,6 @@ import org.springframework.stereotype.Component;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
 
-/**
- * Related to DB migration V106_000__abac-properties-in-chains.sql
- */
 @Component
 public class V104ChainImportFileMigration implements ChainImportFileMigration {
     @Override
