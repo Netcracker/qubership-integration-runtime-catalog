@@ -26,7 +26,6 @@ import jakarta.validation.constraints.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.variable.ImportVariableResult;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.StringResponse;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.variable.ImportVariableDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.variable.ImportVariablePreview;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.variable.VariablesFileResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.CommonVariablesMapper;

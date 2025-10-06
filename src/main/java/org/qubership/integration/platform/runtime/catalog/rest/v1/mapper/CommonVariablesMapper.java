@@ -20,7 +20,6 @@ import lombok.NoArgsConstructor;
 import org.mapstruct.Mapper;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.variable.ImportVariableResult;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.UserMapper;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.variable.ImportVariableDTO;
 import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 import org.springframework.util.CollectionUtils;
 
