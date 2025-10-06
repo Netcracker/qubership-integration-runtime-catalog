@@ -23,6 +23,7 @@ import io.kubernetes.client.util.credentials.TokenFileAuthentication;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
+import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.DefaultKubeSecretOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.KubeSecretOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.LocalDevKubeSecretOperator;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -107,11 +108,59 @@ public class KubeOperatorAutoConfiguration {
         }
     }
 
+    /**
+     * Inside cluster ApiClient configuration
+     * Uses the service account created during deployment for the microservice
+     */
     @Bean
-    //@ConditionalOnExpression("${kubernetes.devmode:false} and ${kubernetes.localdev:false}")
+    @ConditionalOnProperty(prefix = "kubernetes", name = "devmode", havingValue = "false", matchIfMissing = true)
+    public KubeSecretOperator kubeSecretOperator() {
+        try {
+            log.info("Creating KubernetesSecretOperator bean in PROD mode");
+
+            ApiClient client = new ClientBuilder()
+                    .setVerifyingSsl(false)
+                    .setBasePath(uri)
+                    .setCertificateAuthority(Files.readAllBytes(Paths.get(cert)))
+                    .setAuthentication(new TokenFileAuthentication(token))
+                    .build();
+
+            return new DefaultKubeSecretOperator(client, namespace);
+        } catch (Exception e) {
+            log.error("Invalid k8s cluster parameters, can't initialize k8s API. {}", e.getMessage());
+            return new DefaultKubeSecretOperator();
+        }
+    }
+
+    /**
+     * Outside cluster ApiClient configuration
+     * Uses the cluster account token
+     */
+    @Bean
+    @ConditionalOnExpression("${kubernetes.devmode:false} and !${kubernetes.localdev:false}")
+    public KubeSecretOperator kubeSecretOperatorDev() {
+        try {
+            log.info("Creating KubernetesSecretOperator bean in DEV mode");
+
+            ApiClient client = new ClientBuilder()
+                    .setVerifyingSsl(false)
+                    .setBasePath(uri)
+                    .setAuthentication(new AccessTokenAuthentication(token))
+                    .build();
+
+            return new DefaultKubeSecretOperator(client, namespace);
+        } catch (Exception e) {
+            log.error("Invalid k8s cluster parameters, can't initialize k8s API. {}", e.getMessage());
+            return new DefaultKubeSecretOperator();
+        }
+    }
+
+
+    @Bean
+    @ConditionalOnExpression("${kubernetes.devmode:false} and ${kubernetes.localdev:false}")
     @ConditionalOnProperty(prefix = "kubernetes", name = "devmode", havingValue = "true")
     public KubeSecretOperator kubeOperatorLocalDev() {
-        log.info("Creating KubernetesOperator for local development mode");
+        log.info("Creating KubernetesSecretOperator for local development mode");
         return new LocalDevKubeSecretOperator();
     }
 
