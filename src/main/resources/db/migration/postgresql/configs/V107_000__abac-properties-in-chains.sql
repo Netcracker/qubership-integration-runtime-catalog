@@ -3,7 +3,7 @@ SET properties =
     properties - 'abacResource'
     || jsonb_build_object(
         'abacParameters',
-        || jsonb_build_object(
+        jsonb_build_object(
                 'resourceString', e.properties->'abacResource',
                 'resourceType', 'CHAIN',
                 'operation', 'ALL',
