@@ -1,25 +1,15 @@
 UPDATE catalog.elements e
-SET properties = jsonb_set(
-        jsonb_set(
-                jsonb_set(
-                        e.properties,
-                        '{abacParameters, resourceType}',
-                        '"CHAIN"',
-                        true
-                    ),
-                '{abacParameters, operation}',
-                '"ALL"',
-                true
-            ),
-        '{abacParameters, resourceDataType}',
-        '"String"',
-        true
+SET properties =
+    properties - 'abacResource'
+    || jsonb_build_object(
+        'abacParameters',
+        || jsonb_build_object(
+                'resourceString', e.properties->'abacResource',
+                'resourceType', 'CHAIN',
+                'operation', 'ALL',
+                'resourceDataType', 'String'
+        )
     )
-WHERE e.type = 'trigger'
+WHERE e.type = 'http-trigger'
   AND e.properties->>'accessControlType' = 'ABAC'
-  AND (
-    e.properties->'abacParameters'->>'resourceType' IS NULL
-   OR e.properties->'abacParameters'->>'operation' IS NULL
-   OR e.properties->'abacParameters'->>'resourceDataType' IS NULL
-    );
-
+  AND e.properties->'abacParameters' is NULL;
