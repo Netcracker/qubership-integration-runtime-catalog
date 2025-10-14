@@ -100,31 +100,11 @@
         {{/if-property}}
 
         {{#if-property 'accessControlType' equals='ABAC'}}
-            {{#if-property 'abacParameters.resourceType' presented=''}}
-                <setProperty name="internalProperty_resourceType">
-                    <constant>{{escape (property 'abacParameters.resourceType')}}</constant>
+            {{#each (property 'abacParameters')}}
+                <setProperty name="internalProperty_{{escape @key}}">
+                    <constant>{{escape this}}</constant>
                 </setProperty>
-            {{/if-property}}
-            {{#if-property 'abacParameters.operation' presented=''}}
-                <setProperty name="internalProperty_operation">
-                    <constant>{{escape (property 'abacParameters.operation')}}</constant>
-                </setProperty>
-            {{/if-property}}
-            {{#if-property 'abacParameters.resourceDataType' presented=''}}
-                <setProperty name="internalProperty_resourceDataType">
-                    <constant>{{escape (property 'abacParameters.resourceDataType')}}</constant>
-                </setProperty>
-            {{/if-property}}
-            {{#if-property 'abacParameters.resourceString' presented=''}}
-                <setProperty name="internalProperty_resourceString">
-                    <constant>{{escape (property 'abacParameters.resourceString')}}</constant>
-                </setProperty>
-            {{/if-property}}
-            {{#if-property 'abacParameters.resourceMap' presented=''}}
-                <setProperty name="internalProperty_resourceMap">
-                    <constant>{{escape (property 'abacParameters.resourceMap')}}</constant>
-                </setProperty>
-            {{/if-property}}
+            {{/each}}
             <policy ref="abacPolicy">
                 <step id="Validate Request--{{identifier}}">
                     <process ref="httpTriggerProcessor" />
