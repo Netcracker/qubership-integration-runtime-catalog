@@ -120,9 +120,8 @@ public class GenerateURLHelper {
             return result.toString();
         }
 
-        boolean sendEmptyParams = isSendEmptyQueryParams(element);
         for (String key : map.keySet()) {
-            if (!sendEmptyParams || !StringUtils.isEmpty(map.get(key))) {
+            if (!StringUtils.isEmpty(map.get(key))) {
                 if (result.length() == 0) {
                     result.append("?");
                 } else {
