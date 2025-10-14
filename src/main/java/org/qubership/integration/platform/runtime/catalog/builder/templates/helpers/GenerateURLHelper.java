@@ -43,7 +43,11 @@ public class GenerateURLHelper {
             return oldFormatUrl;
         }
 
-        return generatePathParamString(element) + generateQueryParamString(element);
+        if (isSendEmptyQueryParams(element)) {
+            return generatePathParamString(element) + generateQueryParamString(element);
+        } else {
+            return generatePathParamString(element);
+        }
     }
 
     /**
@@ -116,32 +120,21 @@ public class GenerateURLHelper {
             return result.toString();
         }
 
-        Object sendEmptyParamsProperty = element.getProperty(CamelOptions.SEND_EMPTY_QUERY_PARAMS);
-        boolean sendEmptyParams = sendEmptyParamsProperty != null
-            ? Boolean.parseBoolean(String.valueOf(sendEmptyParamsProperty))
-            : true;
-
         for (String key : map.keySet()) {
-            String value = map.get(key);
-            boolean shouldIncludeParam = sendEmptyParams || !isValueEmpty(value);
-            if (shouldIncludeParam) {
+            if (!StringUtils.isEmpty(map.get(key))) {
                 if (result.length() == 0) {
                     result.append("?");
                 } else {
                     result.append("&");
                 }
-                result.append(key).append("=").append(value != null ? value : "");
+                result.append(key).append("=").append(map.get(key));
             }
         }
         return result.toString();
     }
 
-    private boolean isValueEmpty(String value) {
-        if (StringUtils.isEmpty(value)) {
-            return true;
-        }
-        // Handles special cases where values are string representations of empty/null values
-        String trimmed = value.trim();
-        return "null".equals(trimmed) || "undefined".equals(trimmed);
+    private boolean isSendEmptyQueryParams(ChainElement element) {
+        Object sendEmptyParamsProperty = element.getProperty(CamelOptions.SEND_EMPTY_QUERY_PARAMS);
+        return sendEmptyParamsProperty != null && Boolean.parseBoolean(String.valueOf(sendEmptyParamsProperty));
     }
 }
