@@ -25,8 +25,8 @@
         <setProperty name="serviceCallPath">
             <simple>{{escape (property "integrationOperationPath")}}</simple>
         </setProperty>
-        <setProperty name="serviceCallSendEmptyQueryParams">
-            <simple>{{property "sendEmptyQueryParams"}}</simple>
+        <setProperty name="serviceCallSkipEmptyQueryParams">
+            <simple>{{property "integrationOperationSkipEmptyQueryParameters"}}</simple>
         </setProperty>
 
         {{#each (property 'integrationOperationQueryParameters' raw='')}}
@@ -578,4 +578,4 @@
 <removeProperty name="serviceCallExchange"/>
 <removeProperty name="serviceCallService"/>
 <removeProperty name="serviceCallVariablesHeader"/>
-<removeProperty name="serviceCallSendEmptyQueryParams"/>
+<removeProperty name="serviceCallSkipEmptyQueryParams"/>
