@@ -164,7 +164,7 @@
     <removeProperties pattern="serviceCallQueryParameter_*"/>
     <removeProperties pattern="serviceCallPathParameter_*"/>
     <removeProperties pattern="serviceCallParameter_*"/>
-    <removeProperties pattern="protectedQueryParameter_*"/>
+    <removeProperties pattern="internalProperty_queryParam_*"/>
     <removeProperty name="serviceCallTopic"/>
     <removeProperty name="serviceCallBrokers"/>
     <removeProperty name="serviceCallExchange"/>
