@@ -19,37 +19,23 @@ package org.qubership.integration.platform.runtime.catalog.model.consul;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
-
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
+import lombok.experimental.SuperBuilder;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class KeyResponse {
+@SuperBuilder
+public class KeyResponse extends KVResponse {
     @JsonProperty("LockIndex")
     private long lockIndex;
 
-    @JsonProperty("Key")
-    private String key;
-
     @JsonProperty("Flags")
     private long flags;
-
-    @JsonProperty("Value")
-    private String value;
 
     @JsonProperty("CreateIndex")
     private long createIndex;
 
     @JsonProperty("ModifyIndex")
     private long modifyIndex;
-
-    public String getDecodedValue() {
-        return this.value == null
-                ? null
-                : new String(Base64.getDecoder().decode(this.value), StandardCharsets.UTF_8);
-    }
 }
