@@ -100,11 +100,11 @@
         {{/if-property}}
 
         {{#if-property 'accessControlType' equals='ABAC'}}
-            {{#each (property 'abacParameters')}}
-                <setProperty name="internalProperty_{{escape @key}}">
-                    <constant>{{escape this}}</constant>
+            {{#if-property 'abacParameters' presented=''}}
+                <setProperty name='internal_abacParameters'>
+                    <constant>{{escape (property 'abacParameters')}}</constant>
                 </setProperty>
-            {{/each}}
+            {{/if-property}}
             <policy ref="abacPolicy">
                 <step id="Validate Request--{{identifier}}">
                     <process ref="httpTriggerProcessor" />
