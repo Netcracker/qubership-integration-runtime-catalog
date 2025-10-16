@@ -35,6 +35,14 @@
             </setProperty>
         {{/each}}
 
+        {{#if-property 'integrationOperationSkipEmptyQueryParameters' equals='true'}}
+            {{#each (property 'integrationOperationQueryParameters' raw='')}}
+                <setProperty name="internalProperty_queryParam_{{escape @key}}">
+                    <simple>{{escape this}}</simple>
+                </setProperty>
+            {{/each}}
+        {{/if-property}}
+
         {{#each (property 'integrationOperationPathParameters' raw='')}}
             <setProperty name="serviceCallPathParameter_{{escape @key}}">
                 <simple>{{escape this}}</simple>
@@ -573,6 +581,7 @@
 <removeProperties pattern="serviceCallQueryParameter_*"/>
 <removeProperties pattern="serviceCallPathParameter_*"/>
 <removeProperties pattern="serviceCallParameter_*"/>
+<removeProperties pattern="internalProperty_queryParam_*"/>
 <removeProperty name="serviceCallTopic"/>
 <removeProperty name="serviceCallBrokers"/>
 <removeProperty name="serviceCallExchange"/>
