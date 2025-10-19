@@ -101,8 +101,8 @@
 
         {{#if-property 'accessControlType' equals='ABAC'}}
             {{#if-property 'abacParameters' presented=''}}
-                <setProperty name='internal_abacParameters'>
-                    <constant>{{escape (property 'abacParameters')}}</constant>
+                <setProperty name='internalProperty_abacParameters'>
+                    <simple>${exchangeProperty.abacParameters}</simple>
                 </setProperty>
             {{/if-property}}
             <policy ref="abacPolicy">
