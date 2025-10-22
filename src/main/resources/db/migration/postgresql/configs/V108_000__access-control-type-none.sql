@@ -1,4 +1,4 @@
-UPDATE catalog.elements e
+UPDATE catalog.elements
 SET properties = jsonb_set(properties, '{accessControlType}', '"NONE"')
 WHERE type = 'http-trigger'
   AND properties ->>'accessControlType' = 'RBAC'
