@@ -83,6 +83,17 @@ public class MapperAutoConfiguration {
         return yamlMapper;
     }
 
+    @Bean("customResourceYamlMapper")
+    public YAMLMapper customResourceYamlMapper() {
+        YAMLFactory yamlFactory = YAMLFactory.builder()
+                .enable(YAMLGenerator.Feature.LITERAL_BLOCK_STYLE)
+                .enable(YAMLGenerator.Feature.MINIMIZE_QUOTES)
+                .enable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
+                .enable(YAMLGenerator.Feature.SPLIT_LINES)
+                .build();
+        return new YAMLMapper(yamlFactory);
+    }
+
     @Bean("openApiObjectMapper")
     public ObjectMapper openApiObjectMapper() {
         return Json.mapper();
