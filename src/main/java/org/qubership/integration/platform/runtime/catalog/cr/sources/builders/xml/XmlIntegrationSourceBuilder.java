@@ -5,6 +5,8 @@ import org.codehaus.stax2.XMLStreamWriter2;
 import org.qubership.integration.platform.runtime.catalog.builder.ChainRouteBuilder;
 import org.qubership.integration.platform.runtime.catalog.builder.XmlBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.IntegrationSourceBuilder;
+import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.ElementBeansBuilder;
+import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.ElementBeansBuilderFactory;
 import org.qubership.integration.platform.runtime.catalog.model.ChainRoute;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -21,14 +23,17 @@ public class XmlIntegrationSourceBuilder implements IntegrationSourceBuilder {
 
     private final ChainRouteBuilder chainRouteBuilder;
     private final XmlBuilder xmlBuilder;
+    private final ElementBeansBuilderFactory elementBeansBuilderFactory;
 
     @Autowired
     public XmlIntegrationSourceBuilder(
             ChainRouteBuilder chainRouteBuilder,
-            XmlBuilder xmlBuilder
+            XmlBuilder xmlBuilder,
+            ElementBeansBuilderFactory elementBeansBuilderFactory
     ) {
         this.chainRouteBuilder = chainRouteBuilder;
         this.xmlBuilder = xmlBuilder;
+        this.elementBeansBuilderFactory = elementBeansBuilderFactory;
     }
 
     @Override
@@ -73,26 +78,25 @@ public class XmlIntegrationSourceBuilder implements IntegrationSourceBuilder {
         streamWriter.writeStartElement("bean");
         streamWriter.writeAttribute("name", chain.getId());
         streamWriter.writeAttribute("type", "org.qubership.integration.platform.engine.metadata.ChainInfo");
-        streamWriter.writeAttribute("builderClass", "org.qubership.integration.platform.engine.metadata.ChainInfo.ChainInfoBuilder");
+        streamWriter.writeAttribute("builderClass", "org.qubership.integration.platform.engine.metadata.builders.ChainInfoBuilder");
         streamWriter.writeAttribute("builderMethod", "build");
 
         streamWriter.writeStartElement("properties");
 
         streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "chainId");
+        streamWriter.writeAttribute("key", "id");
         streamWriter.writeAttribute("value", chain.getId());
 
         streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "chainName");
+        streamWriter.writeAttribute("key", "name");
         streamWriter.writeAttribute("value", chain.getName());
 
         streamWriter.writeEndElement();
-
-        streamWriter.writeEmptyElement("constructors");
         streamWriter.writeEndElement();
     }
 
     private void writeChainElementBeans(XMLStreamWriter2 streamWriter, ChainElement element) throws Exception {
-        // TODO
+        ElementBeansBuilder builder = elementBeansBuilderFactory.getElementBeansBuilder(element);
+        builder.build(streamWriter, element);
     }
 }
