@@ -1,6 +1,7 @@
-package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.builders;
+package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.builders.element;
 
 import org.codehaus.stax2.XMLStreamWriter2;
+import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.ElementBeansBuilder;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -18,7 +19,11 @@ public class WireTapInfoBeanBuilder implements ElementBeansBuilder {
     }
 
     @Override
-    public void build(XMLStreamWriter2 streamWriter, ChainElement element) throws Exception {
+    public void build(
+            XMLStreamWriter2 streamWriter,
+            ChainElement element,
+            SourceBuilderContext context
+    ) throws Exception {
         streamWriter.writeStartElement("bean");
         streamWriter.writeAttribute("name", element.getId());
         streamWriter.writeAttribute("type", "org.qubership.integration.platform.engine.metadata.WireTapInfo");

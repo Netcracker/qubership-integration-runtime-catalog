@@ -38,8 +38,8 @@ public class IntegrationSourceBuilderFactory {
             }
 
             @Override
-            public String build(Chain chain) throws Exception {
-                return placeholdersSubstitutionService.substitute(builder.build(chain));
+            public String build(Chain chain, SourceBuilderContext context) throws Exception {
+                return placeholdersSubstitutionService.substitute(builder.build(chain, context));
             }
         };
     }

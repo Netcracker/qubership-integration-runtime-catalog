@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans;
 
-import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.builders.CompoundBeansBuilder;
+import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.builders.element.CompoundBeansBuilder;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

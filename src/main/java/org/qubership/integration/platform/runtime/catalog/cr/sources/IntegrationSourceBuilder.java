@@ -5,5 +5,5 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 public interface IntegrationSourceBuilder {
     String getLanguageName();
 
-    String build(Chain chain) throws Exception;
+    String build(Chain chain, SourceBuilderContext context) throws Exception;
 }

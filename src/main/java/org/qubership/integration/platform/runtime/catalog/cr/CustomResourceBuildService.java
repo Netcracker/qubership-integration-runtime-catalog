@@ -9,6 +9,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrate
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.CustomResourceOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.IntegrationSourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.IntegrationSourceBuilderFactory;
+import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -29,6 +30,7 @@ public class CustomResourceBuildService {
     private final YAMLMapper yamlMapper;
     private final NamingStrategy<Void> integrationResourceNamingStrategy;
     private final NamingStrategy<Chain> configMapNamingStrategy;
+    private final NamingStrategy<CustomResourceOptions> buildVersionNamingStrategy;
     private final IntegrationSourceBuilderFactory integrationSourceBuilderFactory;
 
     @Autowired
@@ -36,12 +38,14 @@ public class CustomResourceBuildService {
             @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper,
             NamingStrategy<Void> integrationResourceNamingStrategy,
             NamingStrategy<Chain> configMapNamingStrategy,
+            NamingStrategy<CustomResourceOptions> buildVersionNamingStrategy,
             IntegrationSourceBuilderFactory integrationSourceBuilderFactory
     ) {
         this.yamlMapper = yamlMapper;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
         this.configMapNamingStrategy = configMapNamingStrategy;
         this.integrationSourceBuilderFactory = integrationSourceBuilderFactory;
+        this.buildVersionNamingStrategy = buildVersionNamingStrategy;
     }
 
     public String buildCustomResource(
@@ -50,8 +54,9 @@ public class CustomResourceBuildService {
     ) {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try (SequenceWriter sequenceWriter = yamlMapper.writer().writeValues(outputStream)) {
+            SourceBuilderContext sourceBuilderContext = createSourceBuilderContext(options);
             for (Chain chain : chains) {
-                sequenceWriter.write(buildSourceConfigMap(chain, options));
+                sequenceWriter.write(buildSourceConfigMap(chain, options.getLanguage(), sourceBuilderContext));
             }
             sequenceWriter.write(buildIntegrationResource(chains, options));
             outputStream.flush();
@@ -114,8 +119,12 @@ public class CustomResourceBuildService {
         return crNode;
     }
 
-    private ObjectNode buildSourceConfigMap(Chain chain, CustomResourceOptions options) throws CustomResourceBuildError {
-        IntegrationSourceBuilder sourceBuilder = integrationSourceBuilderFactory.getBuilder(options.getLanguage());
+    private ObjectNode buildSourceConfigMap(
+            Chain chain,
+            String language,
+            SourceBuilderContext context
+    ) throws CustomResourceBuildError {
+        IntegrationSourceBuilder sourceBuilder = integrationSourceBuilderFactory.getBuilder(language);
 
         try {
             ObjectNode configMapNode = yamlMapper.createObjectNode();
@@ -126,7 +135,7 @@ public class CustomResourceBuildService {
             metadataNode.set("name", metadataNode.textNode(configMapNamingStrategy.getName(chain)));
 
             configMapNode.withObjectProperty("data")
-                    .set(CONTENT_KEY, configMapNode.textNode(sourceBuilder.build(chain)));
+                    .set(CONTENT_KEY, configMapNode.textNode(sourceBuilder.build(chain, context)));
 
             return configMapNode;
         } catch (Exception e) {
@@ -144,5 +153,11 @@ public class CustomResourceBuildService {
         String name = configMapNamingStrategy.getName(chain);
         String fileName = String.format("%s.%s", name, options.getLanguage());
         return Paths.get(MOUNT_DIR, fileName).toString();
+    }
+
+    private SourceBuilderContext createSourceBuilderContext(CustomResourceOptions options) {
+        return SourceBuilderContext.builder()
+                .buildVersion(buildVersionNamingStrategy.getName(options))
+                .build();
     }
 }
