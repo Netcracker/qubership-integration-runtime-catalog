@@ -15,7 +15,7 @@ public class ChainInfoBeanBuilder implements ChainBeanBuilder {
             SourceBuilderContext context
     ) throws Exception {
         streamWriter.writeStartElement("bean");
-        streamWriter.writeAttribute("name", chain.getId());
+        streamWriter.writeAttribute("name", "ChainInfo-" + chain.getId());
         streamWriter.writeAttribute("type", "org.qubership.integration.platform.engine.metadata.ChainInfo");
         streamWriter.writeAttribute("builderClass", "org.qubership.integration.platform.engine.metadata.builders.ChainInfoBuilder");
         streamWriter.writeAttribute("builderMethod", "build");

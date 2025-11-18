@@ -37,7 +37,7 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
             SourceBuilderContext context
     ) throws Exception {
         streamWriter.writeStartElement("bean");
-        streamWriter.writeAttribute("name", element.getId());
+        streamWriter.writeAttribute("name", "ElementInfo-" + element.getId());
         streamWriter.writeAttribute("type", "org.qubership.integration.platform.engine.metadata.ElementInfo");
         streamWriter.writeAttribute("builderClass", "org.qubership.integration.platform.engine.metadata.builders.ElementInfoBuilder");
         streamWriter.writeAttribute("builderMethod", "build");
@@ -55,6 +55,10 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "type");
         streamWriter.writeAttribute("value", element.getType());
+
+        streamWriter.writeEmptyElement("property");
+        streamWriter.writeAttribute("key", "chainId");
+        streamWriter.writeAttribute("value", element.getChain().getId());
 
         if (nonNull(element.getParent())) {
             ChainElement parent = element.getParent();

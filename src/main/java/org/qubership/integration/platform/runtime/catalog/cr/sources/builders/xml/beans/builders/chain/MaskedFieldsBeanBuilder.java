@@ -28,7 +28,7 @@ public class MaskedFieldsBeanBuilder implements ChainBeanBuilder {
             SourceBuilderContext context
     ) throws Exception {
         streamWriter.writeStartElement("bean");
-        streamWriter.writeAttribute("name", chain.getId());
+        streamWriter.writeAttribute("name", "MaskedFields-" + chain.getId());
         streamWriter.writeAttribute("type", "org.qubership.integration.platform.engine.metadata.MaskedFields");
         streamWriter.writeAttribute("factoryMethod", "fromJsonString");
 
