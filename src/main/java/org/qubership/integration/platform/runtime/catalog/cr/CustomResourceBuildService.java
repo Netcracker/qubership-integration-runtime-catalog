@@ -56,7 +56,7 @@ public class CustomResourceBuildService {
         try (SequenceWriter sequenceWriter = yamlMapper.writer().writeValues(outputStream)) {
             SourceBuilderContext sourceBuilderContext = createSourceBuilderContext(options);
             for (Chain chain : chains) {
-                sequenceWriter.write(buildSourceConfigMap(chain, options.getLanguage(), sourceBuilderContext));
+                buildResourcesForChain(sequenceWriter, chain, options, sourceBuilderContext);
             }
             sequenceWriter.write(buildIntegrationResource(chains, options));
             outputStream.flush();
@@ -117,6 +117,15 @@ public class CustomResourceBuildService {
         crNode.withObjectProperty("status");
 
         return crNode;
+    }
+
+    private void buildResourcesForChain(
+            SequenceWriter sequenceWriter,
+            Chain chain,
+            CustomResourceOptions options,
+            SourceBuilderContext sourceBuilderContext
+    ) throws IOException {
+        sequenceWriter.write(buildSourceConfigMap(chain, options.getLanguage(), sourceBuilderContext));
     }
 
     private ObjectNode buildSourceConfigMap(
