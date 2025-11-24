@@ -10,7 +10,7 @@ import java.time.format.DateTimeFormatter;
 @Component
 public class BuildVersionNamingStrategy implements NamingStrategy<CustomResourceOptions> {
     private static final DateTimeFormatter DATE_TIME_FORMATTER =
-            DateTimeFormatter.ofPattern("'build-'yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+            DateTimeFormatter.ofPattern("yyyy.MM.dd-HHmmssSSS'Z'");
 
     @Override
     public String getName(CustomResourceOptions context) {
