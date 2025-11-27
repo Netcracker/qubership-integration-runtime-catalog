@@ -12,8 +12,11 @@ import java.util.Map;
 public class ResourceBuildOptions {
     @Builder.Default
     private String language = "xml";
+
     private String name;
-    private String image;
+
+    @Builder.Default
+    private ContainerOptions container = new ContainerOptions();
 
     @Builder.Default
     private Map<String, String> environment = new HashMap<>();

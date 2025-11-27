@@ -8,6 +8,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuild
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ContainerOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -76,12 +77,14 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
     }
 
     private void addContainerTraits(ObjectNode traitsNode, ResourceBuildContext<List<Chain>> context) {
-        String image = context.getBuildInfo().getOptions().getImage();
+        ContainerOptions containerOptions = context.getBuildInfo().getOptions().getContainer();
+        String image = containerOptions.getImage();
         if (StringUtils.isBlank(image)) {
             image = "{{ .Values.container.image }}";
         }
-        traitsNode.withObjectProperty("container")
-                .set("image", traitsNode.textNode(image));
+        ObjectNode containerNode = traitsNode.withObjectProperty("container");
+        containerNode.set("image", traitsNode.textNode(image));
+        containerNode.set("imagePullPolicy", traitsNode.textNode(containerOptions.getImagePoolPolicy().name()));
     }
 
     private void addMountTraits(ObjectNode traitsNode, ResourceBuildContext<List<Chain>> context) {
