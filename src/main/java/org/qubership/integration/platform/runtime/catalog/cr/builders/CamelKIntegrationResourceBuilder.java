@@ -76,12 +76,12 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
         IntStream.range(0, chains.size())
                 .mapToObj(index -> {
                     Chain chain = chains.get(index);
-                    String name = configMapNamingStrategy.getName(chains.get(index));
                     String path = getMountPath(chain, context.getOptions());
                     return List.of(
                             String.format("camel.k.sources[%d].language = %s", index, context.getOptions().getLanguage()),
                             String.format("camel.k.sources[%d].location = file:%s", index, path),
-                            String.format("camel.k.sources[%d].name = %s", index, name)
+                            String.format("camel.k.sources[%d].name = %s", index, chain.getName()),
+                            String.format("camel.k.sources[%d].id = %s", index, chain.getId())
                     );
                 })
                 .flatMap(Collection::stream)
