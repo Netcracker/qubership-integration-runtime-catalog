@@ -7,6 +7,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuild
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.IntegrationSourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.IntegrationSourceBuilderFactory;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
@@ -22,13 +23,13 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Chain> {
 
     private final YAMLMapper yamlMapper;
     private final IntegrationSourceBuilderFactory integrationSourceBuilderFactory;
-    private final NamingStrategy<Chain> configMapNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy;
 
     @Autowired
     public SourceConfigMapBuilder(
             @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper,
             IntegrationSourceBuilderFactory integrationSourceBuilderFactory,
-            NamingStrategy<Chain> configMapNamingStrategy
+            NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy
     ) {
         this.yamlMapper = yamlMapper;
         this.integrationSourceBuilderFactory = integrationSourceBuilderFactory;
@@ -36,8 +37,10 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Chain> {
     }
 
     @Override
-    public ObjectNode build(Chain chain, ResourceBuildContext context) throws Exception {
-        String language = context.getOptions().getLanguage();
+    public ObjectNode build(ResourceBuildContext<Chain> context) throws Exception {
+        Chain chain = context.getData();
+        ResourceBuildOptions options = context.getBuildInfo().getOptions();
+        String language = options.getLanguage();
         IntegrationSourceBuilder sourceBuilder = integrationSourceBuilderFactory.getBuilder(language);
         SourceBuilderContext sourceBuilderContext = createSourceBuilderContext(context);
 
@@ -47,7 +50,7 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Chain> {
             configMapNode.set("kind", configMapNode.textNode("ConfigMap"));
 
             ObjectNode metadataNode = configMapNode.withObjectProperty("metadata");
-            metadataNode.set("name", metadataNode.textNode(configMapNamingStrategy.getName(chain)));
+            metadataNode.set("name", metadataNode.textNode(configMapNamingStrategy.getName(context)));
 
             configMapNode.withObjectProperty("data")
                     .set(CONTENT_KEY, configMapNode.textNode(sourceBuilder.build(chain, sourceBuilderContext)));
@@ -64,9 +67,9 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Chain> {
         }
     }
 
-    private SourceBuilderContext createSourceBuilderContext(ResourceBuildContext context) {
+    private SourceBuilderContext createSourceBuilderContext(ResourceBuildContext<Chain> context) {
         return SourceBuilderContext.builder()
-                .buildVersion(context.getBuildVersion())
+                .buildVersion(context.getBuildInfo().getName())
                 .build();
     }
 }

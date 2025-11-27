@@ -4,7 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuildService;
-import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.CustomResourceBuildRequest;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,7 +36,7 @@ public class CustomResourceBuilderController {
 
     @PostMapping(produces = MediaType.APPLICATION_YAML_VALUE)
     @Operation(description = "Build CR for specified snapshots")
-    public String buildCustomResource(@RequestBody CustomResourceBuildRequest request) {
+    public String buildCustomResource(@RequestBody ResourceBuildRequest request) {
         log.debug("Request to build a CR for chains: {}", request.getChainIds());
         List<Chain> chains = chainRepository.findAllByIdIn(request.getChainIds());
         return customResourceBuildService.buildCustomResource(

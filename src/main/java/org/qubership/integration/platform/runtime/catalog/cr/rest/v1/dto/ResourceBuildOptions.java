@@ -6,9 +6,11 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CustomResourceOptions {
+public class ResourceBuildOptions {
     @Builder.Default
     private String language = "xml";
+
+    private String name;
 
     @NonNull
     private String image;

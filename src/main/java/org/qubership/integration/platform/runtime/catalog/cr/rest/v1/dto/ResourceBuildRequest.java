@@ -9,9 +9,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CustomResourceBuildRequest {
+public class ResourceBuildRequest {
     @NonNull
-    private CustomResourceOptions options;
+    private ResourceBuildOptions options;
 
     @Builder.Default
     private List<String> chainIds = Collections.emptyList();

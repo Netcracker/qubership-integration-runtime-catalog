@@ -1,12 +1,18 @@
 package org.qubership.integration.platform.runtime.catalog.cr;
 
-import lombok.Builder;
 import lombok.Getter;
-import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.CustomResourceOptions;
 
 @Getter
-@Builder
-public class ResourceBuildContext {
-    private final String buildVersion;
-    private CustomResourceOptions options;
+public class ResourceBuildContext<T> {
+    private BuildInfo buildInfo;
+    private T data;
+
+    public static <T> ResourceBuildContext<T> create(BuildInfo buildInfo, T data) {
+        return new ResourceBuildContext<T>(buildInfo, data);
+    }
+
+    private ResourceBuildContext(BuildInfo buildInfo, T data) {
+        this.buildInfo = buildInfo;
+        this.data = data;
+    }
 }
