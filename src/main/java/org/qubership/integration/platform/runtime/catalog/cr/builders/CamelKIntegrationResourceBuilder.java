@@ -90,8 +90,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
                 .withArrayProperty("resources");
 
         context.getData().stream().map(chain -> {
-            ResourceBuildContext<Chain> chainResourceBuildContext =
-                    ResourceBuildContext.create(context.getBuildInfo(), chain);
+            ResourceBuildContext<Chain> chainResourceBuildContext = context.updateTo(chain);
             String name = configMapNamingStrategy.getName(chainResourceBuildContext);
             String resource = String.format("configmap:%s/%s@%s",
                     name, CONTENT_KEY, getMountPath(chainResourceBuildContext));
@@ -108,9 +107,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
         IntStream.range(0, chains.size())
                 .mapToObj(index -> {
                     Chain chain = chains.get(index);
-                    ResourceBuildContext<Chain> chainResourceBuildContext =
-                            ResourceBuildContext.create(context.getBuildInfo(), chain);
-                    String path = getMountPath(chainResourceBuildContext);
+                    String path = getMountPath(context.updateTo(chain));
                     return List.of(
                             String.format("camel.k.sources[%d].language = %s", index, options.getLanguage()),
                             String.format("camel.k.sources[%d].location = file:%s", index, path),

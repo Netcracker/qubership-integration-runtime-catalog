@@ -1,0 +1,26 @@
+package org.qubership.integration.platform.runtime.catalog.cr.naming.strategies;
+
+import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
+
+@Slf4j
+public abstract class K8sResourceNamingStrategy<T> implements NamingStrategy<T> {
+    private static final int K8S_RESOURCE_NAME_LENGTH_LIMIT = 63;
+
+    @Override
+    public String getName(T context) {
+        String name = proposeName(context);
+        verify(name);
+        return name;
+    }
+
+    protected abstract String proposeName(T context);
+
+    private void verify(String name) {
+        if (name.length() > K8S_RESOURCE_NAME_LENGTH_LIMIT) {
+            String message = String.format("Name exceeds maximum length of %d: %s",
+                    K8S_RESOURCE_NAME_LENGTH_LIMIT, name);
+            throw new IllegalArgumentException(message);
+        }
+    }
+}

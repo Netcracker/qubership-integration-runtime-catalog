@@ -42,12 +42,13 @@ public class CustomResourceBuildService {
             ResourceBuildOptions options
     ) {
         BuildInfo buildInfo = createBuildInfo(options);
+        ResourceBuildContext<Void> buildContext = ResourceBuildContext.create(buildInfo);
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try (SequenceWriter sequenceWriter = yamlMapper.writer().writeValues(outputStream)) {
             for (Chain chain : chains) {
-                applyBuilders(sequenceWriter, ResourceBuildContext.create(buildInfo, chain), chainResourceBuilders);
+                applyBuilders(sequenceWriter, buildContext.updateTo(chain), chainResourceBuilders);
             }
-            applyBuilders(sequenceWriter, ResourceBuildContext.create(buildInfo, chains), commonResourceBuilders);
+            applyBuilders(sequenceWriter, buildContext.updateTo(chains), commonResourceBuilders);
             outputStream.flush();
             return outputStream.toString();
         } catch (Exception e) {
