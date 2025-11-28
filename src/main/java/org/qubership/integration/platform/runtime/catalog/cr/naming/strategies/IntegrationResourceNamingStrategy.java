@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component
+@Component("integrationResourceNamingStrategy")
 public class IntegrationResourceNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<List<Chain>>> {
     @Override
     protected String proposeName(ResourceBuildContext<List<Chain>> context) {

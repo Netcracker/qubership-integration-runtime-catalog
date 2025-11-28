@@ -41,7 +41,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
     @Autowired
     public CamelKIntegrationResourceBuilder(
             @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper,
-            NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
+            @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
             NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy
     ) {
         this.yamlMapper = yamlMapper;

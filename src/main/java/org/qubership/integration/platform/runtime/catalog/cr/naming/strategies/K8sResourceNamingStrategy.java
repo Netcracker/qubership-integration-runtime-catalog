@@ -5,7 +5,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrate
 
 @Slf4j
 public abstract class K8sResourceNamingStrategy<T> implements NamingStrategy<T> {
-    private static final int K8S_RESOURCE_NAME_LENGTH_LIMIT = 63;
+    protected static final int K8S_RESOURCE_NAME_LENGTH_LIMIT = 63;
 
     @Override
     public String getName(T context) {
