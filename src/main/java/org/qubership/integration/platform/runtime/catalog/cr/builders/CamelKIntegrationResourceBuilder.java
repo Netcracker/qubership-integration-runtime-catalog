@@ -36,16 +36,19 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
 
     private final YAMLMapper yamlMapper;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Chain>>> serviceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy;
 
     @Autowired
     public CamelKIntegrationResourceBuilder(
             @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper,
             @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
+            @Qualifier("serviceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> serviceNamingStrategy,
             NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy
     ) {
         this.yamlMapper = yamlMapper;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
+        this.serviceNamingStrategy = serviceNamingStrategy;
         this.configMapNamingStrategy = configMapNamingStrategy;
     }
 
@@ -134,6 +137,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
                 .withArrayProperty("vars");
         Map<String, String> environment = new HashMap<>(DEFAULT_ENVIRONMENT);
         environment.putAll(context.getBuildInfo().getOptions().getEnvironment());
+        environment.put("CLOUD_SERVICE_NAME", serviceNamingStrategy.getName(context));
         environment
                 .entrySet()
                 .stream()
