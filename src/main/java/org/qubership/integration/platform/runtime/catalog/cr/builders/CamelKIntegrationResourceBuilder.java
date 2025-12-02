@@ -67,14 +67,14 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
             throw new CustomResourceBuildError("Chain list is empty");
         }
 
+        specNode.set("serviceAccountName", specNode.textNode("{{ .Values.serviceAccountName }}"));
+
         ObjectNode traitsNode = specNode.withObjectProperty("traits");
 
         addContainerTraits(traitsNode, context);
         addMountTraits(traitsNode, context);
         addCamelPropertiesTraits(traitsNode, context);
         addEnvironmentVarsTraits(traitsNode, context);
-
-        crNode.withObjectProperty("status");
 
         return crNode;
     }
