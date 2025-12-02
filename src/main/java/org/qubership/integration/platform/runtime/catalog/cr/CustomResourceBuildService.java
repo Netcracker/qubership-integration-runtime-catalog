@@ -1,17 +1,13 @@
 package org.qubership.integration.platform.runtime.catalog.cr;
 
-import com.fasterxml.jackson.databind.SequenceWriter;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.BuildNamingContext;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
-import java.io.ByteArrayOutputStream;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -19,19 +15,16 @@ import java.util.UUID;
 @Slf4j
 @Service
 public class CustomResourceBuildService {
-    private final YAMLMapper yamlMapper;
     private final NamingStrategy<BuildNamingContext> buildNamingStrategy;
     private final List<ResourceBuilder<Chain>> chainResourceBuilders;
     private final List<ResourceBuilder<List<Chain>>> commonResourceBuilders;
 
     @Autowired
     public CustomResourceBuildService(
-            @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper,
             NamingStrategy<BuildNamingContext> buildNamingStrategy,
             List<ResourceBuilder<Chain>> chainResourceBuilders,
             List<ResourceBuilder<List<Chain>>> commonResourceBuilders
     ) {
-        this.yamlMapper = yamlMapper;
         this.buildNamingStrategy = buildNamingStrategy;
         this.chainResourceBuilders = chainResourceBuilders;
         this.commonResourceBuilders = commonResourceBuilders;
@@ -43,14 +36,13 @@ public class CustomResourceBuildService {
     ) {
         BuildInfo buildInfo = createBuildInfo(options);
         ResourceBuildContext<Void> buildContext = ResourceBuildContext.create(buildInfo);
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try (SequenceWriter sequenceWriter = yamlMapper.writer().writeValues(outputStream)) {
+        StringBuilder stringBuilder = new StringBuilder();
+        try {
             for (Chain chain : chains) {
-                applyBuilders(sequenceWriter, buildContext.updateTo(chain), chainResourceBuilders);
+                applyBuilders(stringBuilder, buildContext.updateTo(chain), chainResourceBuilders);
             }
-            applyBuilders(sequenceWriter, buildContext.updateTo(chains), commonResourceBuilders);
-            outputStream.flush();
-            return outputStream.toString();
+            applyBuilders(stringBuilder, buildContext.updateTo(chains), commonResourceBuilders);
+            return stringBuilder.toString();
         } catch (Exception e) {
             log.error("Failed to build custom resource", e);
             throw new CustomResourceBuildError("Failed to build custom resource", e);
@@ -58,12 +50,12 @@ public class CustomResourceBuildService {
     }
 
     private static <T> void applyBuilders(
-            SequenceWriter sequenceWriter,
+            StringBuilder stringBuilder,
             ResourceBuildContext<T> context,
             List<ResourceBuilder<T>> builders
     ) throws Exception {
         for (var builder : builders) {
-            sequenceWriter.write(builder.build(context));
+            stringBuilder.append(builder.build(context));
         }
     }
 

@@ -16,6 +16,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
+import java.util.List;
+
 @Slf4j
 @Component
 public class SourceConfigMapBuilder implements ResourceBuilder<Chain> {
@@ -24,20 +27,23 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Chain> {
     private final YAMLMapper yamlMapper;
     private final IntegrationSourceBuilderFactory integrationSourceBuilderFactory;
     private final NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
 
     @Autowired
     public SourceConfigMapBuilder(
             @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper,
             IntegrationSourceBuilderFactory integrationSourceBuilderFactory,
-            NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy
+            NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy,
+            @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy
     ) {
         this.yamlMapper = yamlMapper;
         this.integrationSourceBuilderFactory = integrationSourceBuilderFactory;
         this.configMapNamingStrategy = configMapNamingStrategy;
+        this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
     }
 
     @Override
-    public ObjectNode build(ResourceBuildContext<Chain> context) throws Exception {
+    public String build(ResourceBuildContext<Chain> context) throws Exception {
         Chain chain = context.getData();
         ResourceBuildOptions options = context.getBuildInfo().getOptions();
         String language = options.getLanguage();
@@ -52,13 +58,17 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Chain> {
             ObjectNode metadataNode = configMapNode.withObjectProperty("metadata");
             metadataNode.set("name", metadataNode.textNode(configMapNamingStrategy.getName(context)));
 
+            String integrationName = integrationResourceNamingStrategy.getName(context.updateTo(Collections.emptyList()));
+            metadataNode.withObject("labels")
+                    .set("camel.apache.org/integration", metadataNode.textNode(integrationName));
+
             configMapNode.withObjectProperty("data")
                     .set(CONTENT_KEY, configMapNode.textNode(sourceBuilder.build(chain, sourceBuilderContext)));
 
-            return configMapNode;
+            return yamlMapper.writeValueAsString(configMapNode);
         } catch (Exception e) {
             String message = String.format(
-                    "Failed to build integration source for chain '%s' (%s)",
+                    "Failed to build integration source ConfigMap for chain '%s' (%s)",
                     chain.getName(),
                     chain.getId()
             );

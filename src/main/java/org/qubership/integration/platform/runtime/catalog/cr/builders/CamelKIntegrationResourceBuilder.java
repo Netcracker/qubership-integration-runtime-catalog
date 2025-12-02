@@ -1,8 +1,10 @@
 package org.qubership.integration.platform.runtime.catalog.cr.builders;
 
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import com.github.jknack.handlebars.Context;
+import com.github.jknack.handlebars.Handlebars;
+import com.github.jknack.handlebars.Template;
+import lombok.Builder;
+import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuildError;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
@@ -30,87 +32,96 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
             "OPENSEARCH_PORT", "{{ .Values.opensearch.port }}",
             "POSTGRES_URL", "{{ .Values.postgres.url }}",
             "POSTGRES_USER", "{{ .Values.postgres.user }}",
-            "POSTGRES_PASSWORD", "{{ .Values.postgres.password }}"
+            "POSTGRES_PASSWORD", "{{ .Values.postgres.password }}",
+            "MONITORING_ENABLED", "{{ .Values.monitoring.enabled }}"
     );
     private static final String MOUNT_DIR = "/etc/camel/sources/";
+    private static final String TEMPLATE_NAME = "integration";
 
-    private final YAMLMapper yamlMapper;
+    @Data
+    @Builder
+    private static class ContainerData {
+        String image;
+        String imagePullPolicy;
+    }
+
+    @Data
+    @Builder
+    private static class TemplateData {
+        private String name;
+        private ContainerData container;
+        private Collection<String> resources;
+        private Collection<String> properties;
+        private Collection<String> environment;
+    }
+
+    private final Handlebars templates;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> serviceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy;
 
     @Autowired
     public CamelKIntegrationResourceBuilder(
-            @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper,
+            @Qualifier("customResourceTemplates") Handlebars templates,
             @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
             @Qualifier("serviceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> serviceNamingStrategy,
             NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy
     ) {
-        this.yamlMapper = yamlMapper;
+        this.templates = templates;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
         this.serviceNamingStrategy = serviceNamingStrategy;
         this.configMapNamingStrategy = configMapNamingStrategy;
     }
 
     @Override
-    public ObjectNode build(ResourceBuildContext<List<Chain>> context) throws Exception {
-        ObjectNode crNode = yamlMapper.createObjectNode();
-        crNode.set("apiVersion", crNode.textNode("camel.apache.org/v1"));
-        crNode.set("kind", crNode.textNode("Integration"));
-
-        ObjectNode metadataNode = crNode.withObjectProperty("metadata");
-        metadataNode.set("name", metadataNode.textNode(integrationResourceNamingStrategy.getName(context)));
-
-        ObjectNode specNode = crNode.withObjectProperty("spec");
-
+    public String build(ResourceBuildContext<List<Chain>> context) throws Exception {
         if (context.getData().isEmpty()) {
             throw new CustomResourceBuildError("Chain list is empty");
         }
 
-        specNode.set("serviceAccountName", specNode.textNode("{{ .Values.serviceAccountName }}"));
-
-        ObjectNode traitsNode = specNode.withObjectProperty("traits");
-
-        addContainerTraits(traitsNode, context);
-        addMountTraits(traitsNode, context);
-        addCamelPropertiesTraits(traitsNode, context);
-        addEnvironmentVarsTraits(traitsNode, context);
-
-        return crNode;
+        TemplateData templateData = buildTemplateData(context);
+        Context templateContext = Context.newContext(templateData);
+        Template template = templates.compile(TEMPLATE_NAME);
+        return template.apply(templateContext);
     }
 
-    private void addContainerTraits(ObjectNode traitsNode, ResourceBuildContext<List<Chain>> context) {
-        ContainerOptions containerOptions = context.getBuildInfo().getOptions().getContainer();
+    private TemplateData buildTemplateData(ResourceBuildContext<List<Chain>> context) {
+        return TemplateData.builder()
+                .name(integrationResourceNamingStrategy.getName(context))
+                .container(buildContainerData(context.getBuildInfo().getOptions().getContainer()))
+                .resources(buildResources(context))
+                .properties(buildCamelProperties(context))
+                .environment(buildEnvironmentVars(context))
+                .build();
+    }
+
+    private ContainerData buildContainerData(ContainerOptions containerOptions) {
         String image = containerOptions.getImage();
         if (StringUtils.isBlank(image)) {
             image = "{{ .Values.container.image }}";
         }
-        ObjectNode containerNode = traitsNode.withObjectProperty("container");
-        containerNode.set("image", traitsNode.textNode(image));
-        containerNode.set("imagePullPolicy", traitsNode.textNode(containerOptions.getImagePoolPolicy().name()));
+        return ContainerData.builder()
+                .image(image)
+                .imagePullPolicy(containerOptions.getImagePoolPolicy().name())
+                .build();
     }
 
-    private void addMountTraits(ObjectNode traitsNode, ResourceBuildContext<List<Chain>> context) {
-        ArrayNode resourcesNode = traitsNode
-                .withObjectProperty("mount")
-                .withArrayProperty("resources");
-
-        context.getData().stream().map(chain -> {
-            ResourceBuildContext<Chain> chainResourceBuildContext = context.updateTo(chain);
-            String name = configMapNamingStrategy.getName(chainResourceBuildContext);
-            String resource = String.format("configmap:%s/%s@%s",
-                    name, CONTENT_KEY, getMountPath(chainResourceBuildContext));
-            return resourcesNode.textNode(resource);
-        }).forEach(resourcesNode::add);
+    private Collection<String> buildResources(ResourceBuildContext<List<Chain>> context) {
+        return context.getData()
+                .stream()
+                .map(chain -> {
+                    ResourceBuildContext<Chain> chainResourceBuildContext = context.updateTo(chain);
+                    String name = configMapNamingStrategy.getName(chainResourceBuildContext);
+                    return String.format("configmap:%s/%s@%s",
+                            name, CONTENT_KEY, getMountPath(chainResourceBuildContext));
+                })
+                .toList();
     }
 
-    private void addCamelPropertiesTraits(ObjectNode traitsNode, ResourceBuildContext<List<Chain>> context) {
+    private Collection<String> buildCamelProperties(ResourceBuildContext<List<Chain>> context) {
         List<Chain> chains = context.getData();
         ResourceBuildOptions options = context.getBuildInfo().getOptions();
-        ArrayNode arrayNode = traitsNode
-                .withObjectProperty("camel")
-                .withArrayProperty("properties");
-        IntStream.range(0, chains.size())
+        return IntStream.range(0, chains.size())
                 .mapToObj(index -> {
                     Chain chain = chains.get(index);
                     String path = getMountPath(context.updateTo(chain));
@@ -122,7 +133,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
                     );
                 })
                 .flatMap(Collection::stream)
-                .map(arrayNode::textNode).forEach(arrayNode::add);
+                .toList();
     }
 
     private String getMountPath(ResourceBuildContext<Chain> context) {
@@ -131,19 +142,15 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
         return Paths.get(MOUNT_DIR, fileName).toString();
     }
 
-    private void addEnvironmentVarsTraits(ObjectNode traitsNode, ResourceBuildContext<List<Chain>> context) {
-        ArrayNode varsNode = traitsNode
-                .withObjectProperty("environment")
-                .withArrayProperty("vars");
+    private Collection<String> buildEnvironmentVars(ResourceBuildContext<List<Chain>> context) {
         Map<String, String> environment = new HashMap<>(DEFAULT_ENVIRONMENT);
         environment.putAll(context.getBuildInfo().getOptions().getEnvironment());
         environment.put("CLOUD_SERVICE_NAME", serviceNamingStrategy.getName(context));
-        environment
+        return environment
                 .entrySet()
                 .stream()
                 .sorted(Map.Entry.comparingByKey())
                 .map(entry -> String.format("%s=%s", entry.getKey(), entry.getValue()))
-                .map(varsNode::textNode)
-                .forEach(varsNode::add);
+                .toList();
     }
 }
