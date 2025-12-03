@@ -66,6 +66,12 @@ properties:
       title: Override Context Component
       type: custom
       uiComponent: context-override
+    - name: integrationOperationSkipEmptyQueryParameters
+      title: Skip empty query parameters
+      description: When enabled, empty and null query parameters will be skipped from the HTTP request URL
+      type: boolean
+      default: false
+      query: false
   hidden:
     - name: overrideContextParams
       title: Override context parameters
