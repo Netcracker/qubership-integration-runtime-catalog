@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static java.util.Objects.isNull;
+
 @Slf4j
 public class KubeOperator {
     private static final String BUILD_VERSION_LABEL = "app.kubernetes.io/version";
@@ -66,7 +68,12 @@ public class KubeOperator {
         this.namespace = namespace;
     }
 
-    public List<KubeDeployment> getDeploymentsByLabel(String labelKey) throws KubeApiException {
+    public List<KubeDeployment> getDeploymentsByLabel(String labelKey) {
+        return getDeploymentsByLabel(labelKey, null);
+    }
+
+    public List<KubeDeployment> getDeploymentsByLabel(String labelKey, String labelValue) throws KubeApiException {
+        String labelSelector = labelKey + (isNull(labelValue) ? "" : (" = " + labelValue));
         try {
             V1DeploymentList list = appsApi.listNamespacedDeployment(
                     namespace,
@@ -74,7 +81,7 @@ public class KubeOperator {
                     null,
                     null,
                     null,
-                    labelKey + " = true",
+                    labelSelector,
                     null,
                     null,
                     null,

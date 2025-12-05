@@ -29,17 +29,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 
 @Slf4j
 @Component
 public class EngineService {
+    private static final String CAMEL_K_INTEGRATION_LABEL = "camel.apache.org/integration";
     private static final String ENGINE_NAME_LABEL = "name";
+
     private final KubeOperator operator;
     private final DeploymentService deploymentService;
     private final DevModeUtil devModeUtil;
@@ -95,11 +94,17 @@ public class EngineService {
      * @throws KubeApiException
      */
     private List<KubeDeployment> getDeployments() throws KubeApiException {
-        return operator.getDeploymentsByLabel(engineAppCheckLabel);
+        List<KubeDeployment> deployments = new ArrayList<>();
+        deployments.addAll(operator.getDeploymentsByLabel(engineAppCheckLabel, "true"));
+        deployments.addAll(operator.getDeploymentsByLabel(CAMEL_K_INTEGRATION_LABEL));
+        return deployments;
     }
 
     public List<KubePod> getEnginesPods(String domainName) throws KubeApiException {
-        return operator.getPodsByLabel(ENGINE_NAME_LABEL, getActiveKubeDeploymentNameByDomain(domainName));
+        List<KubePod> pods = new ArrayList<>();
+        pods.addAll(operator.getPodsByLabel(ENGINE_NAME_LABEL, getActiveKubeDeploymentNameByDomain(domainName)));
+        pods.addAll(operator.getPodsByLabel(CAMEL_K_INTEGRATION_LABEL, domainName));
+        return pods;
     }
 
     public boolean isDevMode() {
