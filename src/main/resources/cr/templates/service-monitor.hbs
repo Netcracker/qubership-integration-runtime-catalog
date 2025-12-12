@@ -1,0 +1,27 @@
+\{{- if eq .Values.monitoring.enabled true }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{name}}
+  labels:
+    app.kubernetes.io/component: monitoring # defined label that is used by Prometheus CRD to watch
+    app.kubernetes.io/processed-by-operator: victoriametrics-operator
+    camel.apache.org/integration: {{integrationName}}
+spec:
+  targetLabels:
+  - domain
+  endpoints:
+  - interval: \{{ .Values.monitoring.interval | default "30s" }} # interval to scrape metrics
+    path: /metrics
+    port: web
+    scheme: http
+  jobLabel: {{integrationName}}
+  namespaceSelector:
+    matchNames:
+    - \{{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{serviceName}}
+      camel.apache.org/integration: {{integrationName}}
+\{{ end }}
