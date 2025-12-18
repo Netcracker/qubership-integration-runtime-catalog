@@ -22,8 +22,10 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ContextServiceDto;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityLegacyMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ContextServiceDtoMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
@@ -37,21 +39,30 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 @Component
 public class ContextServiceSerializer {
 
+    @Value("${qip.export.legacy-format}")
+    private boolean isLegacyExport;
+
     private final YAMLMapper yamlMapper;
     private final ExportableObjectWriterVisitor exportableObjectWriterVisitor;
     private final ContextServiceDtoMapper contextServiceDtoMapper;
+    private final ExternalEntityLegacyMapper externalEntityLegacyMapper;
 
     @Autowired
     public ContextServiceSerializer(YAMLMapper yamlExportImportMapper,
-                                    ExportableObjectWriterVisitor exportableObjectWriterVisitor, ContextServiceDtoMapper contextServiceDtoMapper) {
+                                    ExportableObjectWriterVisitor exportableObjectWriterVisitor,
+                                    ContextServiceDtoMapper contextServiceDtoMapper,
+                                    ExternalEntityLegacyMapper externalEntityLegacyMapper) {
         this.yamlMapper = yamlExportImportMapper;
         this.exportableObjectWriterVisitor = exportableObjectWriterVisitor;
         this.contextServiceDtoMapper = contextServiceDtoMapper;
+        this.externalEntityLegacyMapper = externalEntityLegacyMapper;
     }
 
     public ExportedSystemObject serialize(ContextSystem system) throws JsonProcessingException {
         ContextServiceDto contextServiceDto = contextServiceDtoMapper.toExternalEntity(system);
-        ObjectNode systemNode = yamlMapper.valueToTree(contextServiceDto);
+        ObjectNode systemNode = isLegacyExport
+                ? yamlMapper.valueToTree(externalEntityLegacyMapper.mapContextServiceToLegacyDto(contextServiceDto))
+                : yamlMapper.valueToTree(contextServiceDto);
 
         return new ExportedContextService(system.getId(), systemNode);
     }
