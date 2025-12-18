@@ -21,6 +21,8 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainExportException;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainExternalEntity;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainExternalMapperEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
@@ -29,6 +31,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.ChainService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityLegacyMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +51,6 @@ import java.util.zip.ZipOutputStream;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
 
-
 @Slf4j
 @Transactional(readOnly = true)
 @Service
@@ -57,11 +59,15 @@ public class ExportService {
     @Value("${app.prefix}")
     private String appName;
 
+    @Value("${qip.export.legacy-format}")
+    private boolean isLegacyExport;
+
     private final YAMLMapper yamlMapper;
     private final ChainService chainService;
     private final ChainFinderService chainFinderService;
     private final ActionsLogService actionLogger;
     private final ChainExternalEntityMapper chainExternalEntityMapper;
+    private final ExternalEntityLegacyMapper externalEntityLegacyMapper;
 
     @Autowired
     public ExportService(
@@ -69,13 +75,15 @@ public class ExportService {
             ChainService chainService,
             ActionsLogService actionLogger,
             ChainFinderService chainFinderService,
-            ChainExternalEntityMapper chainExternalEntityMapper
+            ChainExternalEntityMapper chainExternalEntityMapper,
+            ExternalEntityLegacyMapper externalEntityLegacyMapper
     ) {
         this.yamlMapper = yamlMapper;
         this.chainService = chainService;
         this.chainFinderService = chainFinderService;
         this.actionLogger = actionLogger;
         this.chainExternalEntityMapper = chainExternalEntityMapper;
+        this.externalEntityLegacyMapper = externalEntityLegacyMapper;
     }
 
     public Pair<String, byte[]> exportAllChains() {
@@ -129,11 +137,19 @@ public class ExportService {
                             .getId())).findFirst().orElse(deployments.stream()
                             .min(Comparator.comparing(Deployment::getCreatedWhen)).orElse(null))));
         }
-        var entity = chainExternalEntityMapper.toExternalEntity(chain);
-        String chainYaml = yamlMapper.writeValueAsString(entity.getChainExternalEntity());
+        ChainExternalMapperEntity entity = chainExternalEntityMapper.toExternalEntity(chain);
+        ChainExternalEntity externalEntity = entity.getChainExternalEntity();
+        String chainYaml;
+        if (isLegacyExport) {
+            chainYaml = yamlMapper.writeValueAsString(externalEntityLegacyMapper.mapChainToLegacyEntity(externalEntity));
+            entity.getElementPropertyFiles()
+                    .forEach((name, data) -> result.put(chainDirectory.resolve(name), data));
+        } else {
+            chainYaml = yamlMapper.writeValueAsString(externalEntity);
+            entity.getElementPropertyFiles()
+                    .forEach((name, data) -> result.put(chainDirectory.resolve(RESOURCES_FOLDER_PREFIX + name), data));
+        }
         result.put(chainDirectory.resolve(chainFileName), chainYaml.getBytes());
-        entity.getElementPropertyFiles()
-                .forEach((name, data) -> result.put(chainDirectory.resolve(RESOURCES_FOLDER_PREFIX + name), data));
 
         return result;
     }
@@ -165,6 +181,9 @@ public class ExportService {
     }
 
     public String generateChainYamlName(Chain chain) {
+        if (isLegacyExport) {
+            return CHAIN_YAML_NAME_PREFIX + chain.getId() + YAML_FILE_NAME_POSTFIX;
+        }
         return chain.getId() + CHAIN_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 

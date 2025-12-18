@@ -160,7 +160,10 @@ public class ExportImportUtils {
         return new ZipEntry(zipEntryPrefix + File.separator + filename);
     }
 
-    public static String generateSpecificationFileExportName(String id, String appName) {
+    public static String generateSpecificationFileExportName(String id, String appName, boolean isLegacyExport) {
+        if (isLegacyExport) {
+            return SPECIFICATION_FILE_PREFIX + id + "." + YAML_EXTENSION;
+        }
         return id + SPECIFICATION_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
@@ -214,11 +217,17 @@ public class ExportImportUtils {
         };
     }
 
-    public static String generateMainSystemFileExportName(String id, String appName) {
+    public static String generateMainSystemFileExportName(String id, String appName, boolean isLegacyExport) {
+        if (isLegacyExport) {
+            return SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION;
+        }
         return id + SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
-    public static String generateMainContextServiceFileExportName(String id, String appName) {
+    public static String generateMainContextServiceFileExportName(String id, String appName, boolean isLegacyExport) {
+        if (isLegacyExport) {
+            return CONTEXT_SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION;
+        }
         return id + CONTEXT_SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
@@ -226,7 +235,10 @@ public class ExportImportUtils {
         return SOURCE_YAML_NAME_PREFIX + id;
     }
 
-    public static String generateSpecificationGroupFileExportName(String id, String appName) {
+    public static String generateSpecificationGroupFileExportName(String id, String appName, boolean isLegacyExport) {
+        if (isLegacyExport) {
+            return SPECIFICATION_GROUP_FILE_PREFIX + id + "." + YAML_EXTENSION;
+        }
         return id + SPECIFICATION_GROUP_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
