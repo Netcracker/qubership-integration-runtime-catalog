@@ -24,12 +24,11 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.sys
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportUtils;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityLegacyMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SpecificationGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
@@ -43,15 +42,12 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 @Component
 public class ServiceSerializer {
 
-    @Value("${qip.export.legacy-format}")
-    private boolean isLegacyExport;
-
     private final YAMLMapper yamlMapper;
     private final ExportableObjectWriterVisitor exportableObjectWriterVisitor;
     private final IntegrationSystemDtoMapper integrationSystemDtoMapper;
     private final SpecificationGroupDtoMapper specificationGroupDtoMapper;
     private final SystemModelDtoMapper systemModelDtoMapper;
-    private final ExternalEntityLegacyMapper externalEntityLegacyMapper;
+    private final FileMigrationService fileMigrationService;
 
     @Autowired
     public ServiceSerializer(
@@ -60,21 +56,19 @@ public class ServiceSerializer {
             IntegrationSystemDtoMapper integrationSystemDtoMapper,
             SpecificationGroupDtoMapper specificationGroupDtoMapper,
             SystemModelDtoMapper systemModelDtoMapper,
-            ExternalEntityLegacyMapper externalEntityLegacyMapper
+            FileMigrationService fileMigrationService
     ) {
         this.yamlMapper = yamlExportImportMapper;
         this.exportableObjectWriterVisitor = exportableObjectWriterVisitor;
         this.integrationSystemDtoMapper = integrationSystemDtoMapper;
         this.specificationGroupDtoMapper = specificationGroupDtoMapper;
         this.systemModelDtoMapper = systemModelDtoMapper;
-        this.externalEntityLegacyMapper = externalEntityLegacyMapper;
+        this.fileMigrationService = fileMigrationService;
     }
 
     public ExportedSystemObject serialize(IntegrationSystem system) {
         IntegrationSystemDto integrationSystemDto = integrationSystemDtoMapper.toExternalEntity(system);
-        ObjectNode systemNode = isLegacyExport
-                ? yamlMapper.valueToTree(externalEntityLegacyMapper.mapIntegrationSystemToLegacyDto(integrationSystemDto))
-                : yamlMapper.valueToTree(integrationSystemDto);
+        ObjectNode systemNode = fileMigrationService.revertMigrationIfNeeded(yamlMapper.valueToTree(integrationSystemDto));
 
         List<ExportedSpecificationGroup> exportedSpecificationGroups = system.getSpecificationGroups()
                 .stream()
@@ -86,9 +80,7 @@ public class ServiceSerializer {
 
     public ExportedSpecificationGroup serialize(SpecificationGroup specificationGroup) {
         SpecificationGroupDto dto = specificationGroupDtoMapper.toExternalEntity(specificationGroup);
-        ObjectNode node = isLegacyExport
-                ? yamlMapper.valueToTree(externalEntityLegacyMapper.mapSpecificationGroupToLegacyDto(dto))
-                : yamlMapper.valueToTree(dto);
+        ObjectNode node = fileMigrationService.revertMigrationIfNeeded(yamlMapper.valueToTree(dto));
 
         List<ExportedSpecification> exportedSpecifications = specificationGroup.getSystemModels()
                 .stream()
@@ -99,9 +91,7 @@ public class ServiceSerializer {
 
     public ExportedSpecification serialize(SystemModel specification) {
         SystemModelDto dto = systemModelDtoMapper.toExternalEntity(specification);
-        ObjectNode node = isLegacyExport
-                ? yamlMapper.valueToTree(externalEntityLegacyMapper.mapSystemModelToLegacyDto(dto))
-                : yamlMapper.valueToTree(dto);
+        ObjectNode node = fileMigrationService.revertMigrationIfNeeded(yamlMapper.valueToTree(dto));
 
         List<ExportedSpecificationSource> exportedSpecificationSources = specification.getSpecificationSources()
                 .stream()
