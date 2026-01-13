@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.service;
 
 import com.google.common.collect.Lists;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.AbacRoleChangeException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
@@ -53,6 +54,10 @@ import java.util.stream.Collectors;
 @Service
 public class ChainRolesService {
     private static final String ROLES = "roles";
+    private static final String ACCESS_CONTROL_TYPE = "accessControlType";
+    public static final String ACCESS_CONTROL_TYPE_ABAC = "ABAC";
+    public static final String ACCESS_CONTROL_TYPE_NONE = "NONE";
+    public static final String ACCESS_CONTROL_TYPE_RBAC = "RBAC";
     private final ElementService elementService;
     private final DeploymentService deploymentService;
     private final RuntimeDeploymentService runtimeDeploymentService;
@@ -117,7 +122,23 @@ public class ChainRolesService {
         for (UpdateRolesRequest updateReq : request) {
             try {
                 ChainElement element = elementService.findById(updateReq.getElementId());
-                element.getProperties().put(ROLES, Lists.newArrayList(updateReq.getRoles()));
+                Map<String, Object> properties = element.getProperties();
+                List<String> newRoles = Lists.newArrayList(updateReq.getRoles());
+
+                String accessControlType = (String) properties.get("accessControlType");
+                if (accessControlType.equals(ACCESS_CONTROL_TYPE_ABAC)) {
+                    throw new AbacRoleChangeException();
+                }
+
+                if (accessControlType.equals(ACCESS_CONTROL_TYPE_NONE) && !newRoles.isEmpty()) {
+                    element.getProperties().put(ACCESS_CONTROL_TYPE, ACCESS_CONTROL_TYPE_RBAC);
+                }
+
+                if (accessControlType.equals(ACCESS_CONTROL_TYPE_RBAC) && newRoles.isEmpty()) {
+                    element.getProperties().put(ACCESS_CONTROL_TYPE, ACCESS_CONTROL_TYPE_NONE);
+                }
+
+                element.getProperties().put(ROLES, newRoles);
                 element.getChain().setUnsavedChanges(true);
                 UpdateRolesRequest updateRolesRequest = new UpdateRolesRequest(element.getChain().isUnsavedChanges(),
                         element.getChain().getId());
@@ -134,6 +155,8 @@ public class ChainRolesService {
                         .parentName(element.getChain().getName())
                         .operation(LogOperation.UPDATE)
                         .build());
+            } catch (AbacRoleChangeException exception) {
+                throw exception;
             } catch (Exception exception) {
                 log.error("Error when updating roles: {}", exception.getLocalizedMessage());
             }
@@ -177,7 +200,7 @@ public class ChainRolesService {
                         throw new DeploymentProcessingException("Unable to redeploy chain " + chainId + ":" + exception.getMessage(), exception);
                     }
                 });
-            return chainRolesAndFilters;
+        return chainRolesAndFilters;
     }
 
 
