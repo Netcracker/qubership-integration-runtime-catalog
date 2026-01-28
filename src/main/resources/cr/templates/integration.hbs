@@ -1,0 +1,27 @@
+---
+apiVersion: camel.apache.org/v1
+kind: Integration
+metadata:
+  name: {{name}}
+spec:
+  serviceAccountName: "\{{ .Values.serviceAccountName }}"
+  traits:
+    container:
+{{#with container}}      image: "{{image}}"
+      imagePullPolicy: {{imagePullPolicy}}
+{{/with}}
+    mount:
+      resources:
+{{#each resources}}
+      - "{{.}}"
+{{/each}}
+    camel:
+      properties:
+{{#each properties}}
+      - "{{.}}"
+{{/each}}
+    environment:
+      vars:
+{{#each environment}}
+      - {{.}}
+{{/each}}

@@ -23,12 +23,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.lang.NonNull;
 
 import java.sql.Timestamp;
+import java.util.Collection;
 import java.util.List;
 
 public interface ChainRepository extends CommonRepository<Chain>, JpaRepository<Chain, String>, JpaSpecificationExecutor<Chain> {
     boolean existsByNameAndParentFolderId(String name, String parentFolderId);
+
+    List<Chain> findAllByIdIn(@NonNull Collection<String> ids);
 
     @Modifying
     @Query("update chains chain set chain.modifiedWhen = :modifiedWhen where chain.id = :chainId")
