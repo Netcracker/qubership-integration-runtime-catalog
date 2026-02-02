@@ -9,6 +9,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuildError;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
+import org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder;
+import org.qubership.integration.platform.runtime.catalog.cr.locations.SourceMountPointGetter;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ContainerOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
@@ -17,14 +19,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
-import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder.CONTENT_KEY;
 
 @Component
 public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Chain>> {
+    private static final String QIP_CHAINS_CONFIGURATION_PATH = "/etc/integrations-config.yaml";
+
     private static final Map<String, String> DEFAULT_ENVIRONMENT = Map.of(
             "CONSUL_URL", "{{ .Values.consul.url }}",
             "CONSUL_ADMIN_TOKEN", "{{ .Values.consul.adminToken }}",
@@ -35,7 +37,6 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
             "POSTGRES_PASSWORD", "{{ .Values.postgres.password }}",
             "MONITORING_ENABLED", "{{ .Values.monitoring.enabled }}"
     );
-    private static final String MOUNT_DIR = "/etc/camel/sources/";
     private static final String TEMPLATE_NAME = "integration";
 
     @Data
@@ -53,24 +54,37 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
         private Collection<String> resources;
         private Collection<String> properties;
         private Collection<String> environment;
+        private boolean propertiesEnabled;
+        private String serviceAccountName;
     }
 
     private final Handlebars templates;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> serviceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationsConfigurationConfigMapNamingStrategy;
+    private final SourceMountPointGetter sourceMountPointGetter;
 
     @Autowired
     public CamelKIntegrationResourceBuilder(
             @Qualifier("customResourceTemplates") Handlebars templates,
             @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
             @Qualifier("serviceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> serviceNamingStrategy,
-            NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy
+            @Qualifier("integrationsConfigurationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationsConfigurationConfigMapNamingStrategy,
+            NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy,
+            SourceMountPointGetter sourceMountPointGetter
     ) {
         this.templates = templates;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
         this.serviceNamingStrategy = serviceNamingStrategy;
         this.configMapNamingStrategy = configMapNamingStrategy;
+        this.integrationsConfigurationConfigMapNamingStrategy = integrationsConfigurationConfigMapNamingStrategy;
+        this.sourceMountPointGetter = sourceMountPointGetter;
+    }
+
+    @Override
+    public boolean enabled(ResourceBuildContext<List<Chain>> context) {
+        return true;
     }
 
     @Override
@@ -90,8 +104,11 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
                 .name(integrationResourceNamingStrategy.getName(context))
                 .container(buildContainerData(context.getBuildInfo().getOptions().getContainer()))
                 .resources(buildResources(context))
+                .propertiesEnabled(!context.getBuildInfo().getOptions()
+                        .getIntegrations().isConfigurationConfigMapNeeded())
                 .properties(buildCamelProperties(context))
                 .environment(buildEnvironmentVars(context))
+                .serviceAccountName(buildServiceAccountName(context))
                 .build();
     }
 
@@ -106,16 +123,30 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
                 .build();
     }
 
+    private String buildServiceAccountName(ResourceBuildContext<List<Chain>> context) {
+        String serviceAccount = context.getBuildInfo().getOptions().getServiceAccount();
+        return StringUtils.isBlank(serviceAccount)
+                ? "{{ .Values.serviceAccountName }}"
+                : serviceAccount;
+    }
+
     private Collection<String> buildResources(ResourceBuildContext<List<Chain>> context) {
-        return context.getData()
+        List<String> resources = context.getData()
                 .stream()
                 .map(chain -> {
                     ResourceBuildContext<Chain> chainResourceBuildContext = context.updateTo(chain);
                     String name = configMapNamingStrategy.getName(chainResourceBuildContext);
                     return String.format("configmap:%s/%s@%s",
-                            name, CONTENT_KEY, getMountPath(chainResourceBuildContext));
+                            name, SourceConfigMapBuilder.CONTENT_KEY, sourceMountPointGetter.apply(chainResourceBuildContext));
                 })
-                .toList();
+                .collect(Collectors.toList());
+        if (context.getBuildInfo().getOptions().getIntegrations().isConfigurationConfigMapNeeded()) {
+            String name = integrationsConfigurationConfigMapNamingStrategy.getName(context);
+            String resource = String.format("configmap:%s/%s@%s", name,
+                    IntegrationsConfigurationConfigMapBuilder.CONTENT_KEY, QIP_CHAINS_CONFIGURATION_PATH);
+            resources.add(resource);
+        }
+        return resources;
     }
 
     private Collection<String> buildCamelProperties(ResourceBuildContext<List<Chain>> context) {
@@ -124,7 +155,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
         return IntStream.range(0, chains.size())
                 .mapToObj(index -> {
                     Chain chain = chains.get(index);
-                    String path = getMountPath(context.updateTo(chain));
+                    String path = sourceMountPointGetter.apply(context.updateTo(chain));
                     return List.of(
                             String.format("camel.k.sources[%d].language = %s", index, options.getLanguage()),
                             String.format("camel.k.sources[%d].location = file:%s", index, path),
@@ -136,16 +167,15 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
                 .toList();
     }
 
-    private String getMountPath(ResourceBuildContext<Chain> context) {
-        String name = configMapNamingStrategy.getName(context);
-        String fileName = String.format("%s.%s", name, context.getBuildInfo().getOptions().getLanguage());
-        return Paths.get(MOUNT_DIR, fileName).toString();
-    }
-
     private Collection<String> buildEnvironmentVars(ResourceBuildContext<List<Chain>> context) {
         Map<String, String> environment = new HashMap<>(DEFAULT_ENVIRONMENT);
         environment.putAll(context.getBuildInfo().getOptions().getEnvironment());
         environment.put("CLOUD_SERVICE_NAME", serviceNamingStrategy.getName(context));
+        if (!context.getBuildInfo().getOptions().getIntegrations().isCamelKSourcesUtilized()) {
+            String location = context.getBuildInfo().getOptions().getIntegrations().getConfigurationLocation();
+            environment.put("QIP_CHAINS_CONFIGURATION_URL",
+                    StringUtils.isBlank(location) ? "file:" + QIP_CHAINS_CONFIGURATION_PATH : location);
+        }
         return environment
                 .entrySet()
                 .stream()

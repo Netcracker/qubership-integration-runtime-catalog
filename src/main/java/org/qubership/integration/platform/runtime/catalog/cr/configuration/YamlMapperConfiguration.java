@@ -18,4 +18,14 @@ public class YamlMapperConfiguration {
                 .build();
         return new YAMLMapper(yamlFactory);
     }
+
+    @Bean("integrationsConfigurationMapper")
+    public YAMLMapper integrationsConfigurationMapper() {
+        YAMLFactory yamlFactory = YAMLFactory.builder()
+                .enable(YAMLGenerator.Feature.LITERAL_BLOCK_STYLE)
+                .enable(YAMLGenerator.Feature.MINIMIZE_QUOTES)
+                .enable(YAMLGenerator.Feature.SPLIT_LINES)
+                .build();
+        return new YAMLMapper(yamlFactory);
+    }
 }

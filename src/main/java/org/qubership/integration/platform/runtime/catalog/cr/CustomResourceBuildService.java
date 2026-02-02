@@ -55,7 +55,9 @@ public class CustomResourceBuildService {
             List<ResourceBuilder<T>> builders
     ) throws Exception {
         for (var builder : builders) {
-            stringBuilder.append(builder.build(context));
+            if (builder.enabled(context)) {
+                stringBuilder.append(builder.build(context));
+            }
         }
     }
 

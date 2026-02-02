@@ -142,6 +142,11 @@ kubernetes:
     label: ${app.prefix}-variable-type
 
 qip:
+  cr:
+    build:
+      container:
+        image: ${ENGINE_CONTAINER_IMAGE:}
+      service-account: ${CR_K8S_SERVICE_ACCOUNT:default}
   snapshots:
     cleanup:
       interval: ${SNAPSHOTS_CLEANUP_INTERVAL:14} # snapshots older than interval will be deleted

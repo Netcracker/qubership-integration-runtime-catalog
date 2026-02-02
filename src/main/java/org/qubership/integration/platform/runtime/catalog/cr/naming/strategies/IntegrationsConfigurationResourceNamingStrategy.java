@@ -3,22 +3,20 @@ package org.qubership.integration.platform.runtime.catalog.cr.naming.strategies;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component("serviceMonitorNamingStrategy")
-public class ServiceMonitorNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<List<Chain>>> {
+@Component("integrationsConfigurationResourceNamingStrategy")
+public class IntegrationsConfigurationResourceNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<List<Chain>>> {
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
 
-    @Value("${qip.cr.naming.service-monitor.suffix:-monitor}")
+    @Value("${qip.cr.naming.chains-configuration.suffix:-chains-cfg}")
     private String suffix;
 
-    @Autowired
-    public ServiceMonitorNamingStrategy(
+    public IntegrationsConfigurationResourceNamingStrategy(
             @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy
     ) {
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;

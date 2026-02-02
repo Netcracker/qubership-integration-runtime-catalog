@@ -4,7 +4,7 @@ kind: Integration
 metadata:
   name: {{name}}
 spec:
-  serviceAccountName: "\{{ .Values.serviceAccountName }}"
+  serviceAccountName: {{serviceAccountName}}
   traits:
     container:
 {{#with container}}      image: "{{image}}"
@@ -15,11 +15,13 @@ spec:
 {{#each resources}}
       - "{{.}}"
 {{/each}}
+{{#if propertiesEnabled}}
     camel:
       properties:
 {{#each properties}}
       - "{{.}}"
 {{/each}}
+{{/if}}
     environment:
       vars:
 {{#each environment}}

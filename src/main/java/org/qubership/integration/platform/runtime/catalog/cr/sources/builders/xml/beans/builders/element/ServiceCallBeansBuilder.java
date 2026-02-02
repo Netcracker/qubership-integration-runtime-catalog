@@ -58,6 +58,10 @@ public class ServiceCallBeansBuilder implements ElementBeansBuilder {
         streamWriter.writeAttribute("key", "protocol");
         streamWriter.writeAttribute("value", element.getPropertyAsString(CamelNames.OPERATION_PROTOCOL_TYPE_PROP));
 
+        streamWriter.writeEmptyElement("property");
+        streamWriter.writeAttribute("key", "specificationId");
+        streamWriter.writeEmptyElement("value", element.getPropertyAsString(CamelOptions.SPECIFICATION_ID));
+
         if (IntegrationSystemType.EXTERNAL.name().equals(element.getProperty(CamelOptions.SYSTEM_TYPE))) {
             String systemId = (String) element.getProperty(CamelOptions.SYSTEM_ID);
             if (StringUtils.isNotEmpty(systemId)) {

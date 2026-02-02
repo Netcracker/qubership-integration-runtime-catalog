@@ -19,5 +19,13 @@ public class ResourceBuildOptions {
     private ContainerOptions container = new ContainerOptions();
 
     @Builder.Default
+    private MonitoringOptions monitoring = new MonitoringOptions();
+
+    @Builder.Default
     private Map<String, String> environment = new HashMap<>();
+
+    @Builder.Default
+    private IntegrationsConfigurationOptions integrations = new IntegrationsConfigurationOptions();
+
+    private String serviceAccount;
 }

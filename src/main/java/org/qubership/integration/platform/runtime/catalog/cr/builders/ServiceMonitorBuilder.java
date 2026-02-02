@@ -5,6 +5,7 @@ import com.github.jknack.handlebars.Handlebars;
 import com.github.jknack.handlebars.Template;
 import lombok.Builder;
 import lombok.Data;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
@@ -25,6 +26,7 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Chain>> {
         private String name;
         private String integrationName;
         private String serviceName;
+        private String interval;
     }
 
     private final Handlebars templates;
@@ -46,6 +48,11 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Chain>> {
     }
 
     @Override
+    public boolean enabled(ResourceBuildContext<List<Chain>> context) {
+        return context.getBuildInfo().getOptions().getMonitoring().isEnabled();
+    }
+
+    @Override
     public String build(ResourceBuildContext<List<Chain>> context) throws Exception {
         TemplateData templateData = buildTemplateData(context);
         Context templateContext = Context.newContext(templateData);
@@ -58,6 +65,14 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Chain>> {
                 .name(serviceMonitorNamingStrategy.getName(context))
                 .integrationName(integrationResourceNamingStrategy.getName(context))
                 .serviceName(serviceNamingStrategy.getName(context))
+                .interval(getMetricsScrapeInterval(context))
                 .build();
+    }
+
+    private String getMetricsScrapeInterval(ResourceBuildContext<List<Chain>> context) {
+        String interval = context.getBuildInfo().getOptions().getMonitoring().getInterval();
+        return StringUtils.isBlank(interval)
+                ? "{{ .Values.monitoring.interval | default \"30s\" }}"
+                : interval;
     }
 }

@@ -1,4 +1,3 @@
-\{{- if eq .Values.monitoring.enabled true }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
@@ -12,7 +11,7 @@ spec:
   targetLabels:
   - domain
   endpoints:
-  - interval: \{{ .Values.monitoring.interval | default "30s" }} # interval to scrape metrics
+  - interval: {{interval}}
     path: /metrics
     port: web
     scheme: http
@@ -24,4 +23,3 @@ spec:
     matchLabels:
       app.kubernetes.io/name: {{serviceName}}
       camel.apache.org/integration: {{integrationName}}
-\{{ end }}

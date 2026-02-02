@@ -43,6 +43,11 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Chain> {
     }
 
     @Override
+    public boolean enabled(ResourceBuildContext<Chain> context) {
+        return true;
+    }
+
+    @Override
     public String build(ResourceBuildContext<Chain> context) throws Exception {
         Chain chain = context.getData();
         ResourceBuildOptions options = context.getBuildInfo().getOptions();
