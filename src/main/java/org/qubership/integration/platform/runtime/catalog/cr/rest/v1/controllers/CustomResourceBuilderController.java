@@ -68,6 +68,6 @@ public class CustomResourceBuilderController {
         String resourceText = customResourceBuildService.buildCustomResource(chains, options);
         customResourceDeployService.deploy(resourceText);
 
-        return ResponseEntity.accepted().build();
+        return ResponseEntity.ok().build();
     }
 }

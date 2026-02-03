@@ -93,6 +93,7 @@ public class KubeOperator {
                     .map(item -> KubeDeployment.builder()
                             .id(Objects.requireNonNull(item.getMetadata().getUid()))
                             .name(Objects.requireNonNull(item.getMetadata()).getName())
+                            .labels(Objects.requireNonNull(item.getMetadata()).getLabels())
                             .namespace(namespace)
                             .replicas(Objects.requireNonNull(item.getSpec().getReplicas()))
                             .version(Objects.requireNonNull(item.getMetadata().getLabels()).get(BUILD_VERSION_LABEL))
