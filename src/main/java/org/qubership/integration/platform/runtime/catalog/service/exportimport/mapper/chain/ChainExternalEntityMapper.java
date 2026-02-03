@@ -144,13 +144,11 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                         .defaultSwimlaneId(
                                 Optional.ofNullable(chain.getDefaultSwimlane())
                                         .map(SwimlaneChainElement::getId)
-                                        .orElse(null)
-                        )
+                                        .orElse(null))
                         .reuseSwimlaneId(
                                 Optional.ofNullable(chain.getReuseSwimlane())
                                         .map(SwimlaneChainElement::getId)
-                                        .orElse(null)
-                        )
+                                        .orElse(null))
                         .elements(elementsExternalMapperEntity.getChainElementExternalEntities())
                         .dependencies(extractExternalDependencies(chain))
                         .migrations(chainImportFileMigrations.stream()
