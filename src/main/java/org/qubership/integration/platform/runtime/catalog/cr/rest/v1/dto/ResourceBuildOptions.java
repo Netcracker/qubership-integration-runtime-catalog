@@ -15,6 +15,8 @@ public class ResourceBuildOptions {
 
     private String name;
 
+    private String namespace;
+
     @Builder.Default
     private ContainerOptions container = new ContainerOptions();
 

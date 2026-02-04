@@ -25,9 +25,13 @@ public class CustomResourceOptionsProvider {
     @Value("${qip.cr.build.service-account:default}")
     private String serviceAccount;
 
+    @Value("${qip.cr.build.namespace:default")
+    private String namespace;
+
     public ResourceBuildOptions getOptions(ResourceDeployRequest request) {
         return ResourceBuildOptions.builder()
                 .name(request.getName())
+                .namespace(namespace)
                 .container(ContainerOptions.builder()
                         .image(containerImage)
                         .imagePoolPolicy(imagePoolPolicy)

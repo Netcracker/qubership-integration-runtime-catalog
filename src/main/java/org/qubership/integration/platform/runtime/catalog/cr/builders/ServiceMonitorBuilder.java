@@ -27,6 +27,7 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Chain>> {
         private String integrationName;
         private String serviceName;
         private String interval;
+        private String namespace;
     }
 
     private final Handlebars templates;
@@ -65,6 +66,7 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Chain>> {
                 .name(serviceMonitorNamingStrategy.getName(context))
                 .integrationName(integrationResourceNamingStrategy.getName(context))
                 .serviceName(serviceNamingStrategy.getName(context))
+                .namespace(getNamespace(context))
                 .interval(getMetricsScrapeInterval(context))
                 .build();
     }
@@ -74,5 +76,12 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Chain>> {
         return StringUtils.isBlank(interval)
                 ? "{{ .Values.monitoring.interval | default \"30s\" }}"
                 : interval;
+    }
+
+    private String getNamespace(ResourceBuildContext<List<Chain>> context) {
+        String namespace = context.getBuildInfo().getOptions().getNamespace();
+        return StringUtils.isBlank(namespace)
+                ? "{{ .Release.namespace }}"
+                : namespace;
     }
 }

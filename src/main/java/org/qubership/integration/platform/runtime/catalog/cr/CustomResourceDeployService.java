@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.runtime.catalog.cr;
 
+import com.coreos.monitoring.models.V1ServiceMonitor;
+import com.coreos.monitoring.models.V1ServiceMonitorList;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.util.ModelMapper;
 import io.kubernetes.client.util.Yaml;
@@ -28,6 +30,7 @@ public class CustomResourceDeployService {
     @PostConstruct
     public void init() {
         ModelMapper.addModelMap("camel.apache.org", "v1", "Integration", "Integrations", CamelKIntegration.class, CamelKIntegrationList.class);
+        ModelMapper.addModelMap("monitoring.coreos.com", "v1", "ServiceMonitor", "ServiceMonitors", V1ServiceMonitor.class, V1ServiceMonitorList.class);
     }
 
     public void deploy(String resourceText) throws CustomResourceDeployError {

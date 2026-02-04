@@ -16,9 +16,14 @@
 
 package org.qubership.integration.platform.runtime.catalog.kubernetes;
 
+import com.coreos.monitoring.models.V1ServiceMonitor;
+import com.coreos.monitoring.models.V1ServiceMonitorList;
+import com.google.gson.reflect.TypeToken;
+import io.kubernetes.client.common.KubernetesListObject;
 import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
+import io.kubernetes.client.openapi.JSON;
 import io.kubernetes.client.openapi.apis.AppsV1Api;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
@@ -26,11 +31,13 @@ import io.kubernetes.client.openapi.models.*;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceDeployError;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrationList;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubePod;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.PodRunningStatus;
 
+import java.lang.reflect.Type;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -74,20 +81,7 @@ public class KubeOperator {
     public List<KubeDeployment> getDeploymentsByLabel(String labelKey, String labelValue) throws KubeApiException {
         String labelSelector = labelKey + (isNull(labelValue) ? "" : (" = " + labelValue));
         try {
-            V1DeploymentList list = appsApi.listNamespacedDeployment(
-                    namespace,
-                    null,
-                    null,
-                    null,
-                    null,
-                    labelSelector,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-            );
+            V1DeploymentList list = appsApi.listNamespacedDeployment(namespace).labelSelector(labelSelector).execute();
 
             return list.getItems().stream()
                     .map(item -> KubeDeployment.builder()
@@ -111,20 +105,7 @@ public class KubeOperator {
 
     public List<KubePod> getPodsByLabel(String labelKey, String labelValue) throws KubeApiException {
         try {
-            V1PodList list = coreApi.listNamespacedPod(
-                    namespace,
-                    null,
-                    null,
-                    null,
-                    null,
-                    labelKey + " = " + labelValue,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-            );
+            V1PodList list = coreApi.listNamespacedPod(namespace).labelSelector(labelKey + "=" + labelValue).execute();
 
             return list.getItems().stream()
                     .map(item -> {
@@ -156,20 +137,7 @@ public class KubeOperator {
 
     public List<KubeService> getServices() {
         try {
-            V1ServiceList list = coreApi.listNamespacedService(
-                    namespace,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-            );
+            V1ServiceList list = coreApi.listNamespacedService(namespace).execute();
 
             return list.getItems().stream()
                     .filter(item -> !(Objects.requireNonNull(Objects.requireNonNull(item.getMetadata()).getName()).matches(REGEX_FOR_SEARCH_BLUEGREEN_SERVICE_NAME)))
@@ -197,60 +165,79 @@ public class KubeOperator {
         } else if (resource instanceof V1Service service) {
             createOrUpdateService(service);
         } else if (resource instanceof CamelKIntegration integration) {
-            createOrUpdateCamelKIntegration(integration);
+            createOrUpdateCustomResource("camel.apache.org", "v1", "integrations",
+                    integration, new TypeToken<CamelKIntegrationList>(){}.getType());
+        } else if (resource instanceof V1ServiceMonitor serviceMonitor) {
+            createOrUpdateCustomResource("monitoring.coreos.com", "v1", "servicemonitors",
+                    serviceMonitor, new TypeToken<V1ServiceMonitorList>(){}.getType());
         } else {
             throw new CustomResourceDeployError("Unsupported resource type: " + resource);
         }
     }
 
-    private Optional<String> getName(KubernetesObject obj) {
-        return Optional.ofNullable(obj.getMetadata()).map(V1ObjectMeta::getName);
-    }
-
     private void createOrUpdateConfigMap(V1ConfigMap cm) throws ApiException {
-        V1ConfigMapList configMapList = coreApi.listNamespacedConfigMap(namespace, null, null, null, null, null, null, null, null, null, null, null);
-        Optional<String> name = getName(cm);
-        boolean alreadyExists = configMapList.getItems().stream()
-                .anyMatch(m -> getName(m).equals(name));
-        if (alreadyExists) {
-            coreApi.replaceNamespacedConfigMap(name.orElse(""), namespace, cm, null, null, null, null);
+        V1ConfigMapList configMapList = coreApi.listNamespacedConfigMap(namespace).execute();
+        if (listContains(configMapList, cm)) {
+            coreApi.replaceNamespacedConfigMap(getName(cm).orElse(""), namespace, cm).execute();
         } else {
-            coreApi.createNamespacedConfigMap(namespace, cm, null, null, null, null);
+            coreApi.createNamespacedConfigMap(namespace, cm).execute();
         }
     }
 
     private void createOrUpdateService(V1Service service) throws ApiException {
-        V1ServiceList serviceList = coreApi.listNamespacedService(namespace, null, null, null, null, null, null, null, null, null, null, null);
-        Optional<String> name = getName(service);
-        boolean alreadyExists = serviceList.getItems().stream()
-                .anyMatch(m -> getName(m).equals(name));
-        if (alreadyExists) {
-            coreApi.replaceNamespacedService(name.orElse(""), namespace, service, null, null, null, null);
+        V1ServiceList serviceList = coreApi.listNamespacedService(namespace).execute();
+        if (listContains(serviceList, service)) {
+            coreApi.replaceNamespacedService(getName(service).orElse(""), namespace, service).execute();
         } else {
-            coreApi.createNamespacedService(namespace, service, null, null, null, null);
+            coreApi.createNamespacedService(namespace, service).execute();
         }
     }
 
     private void createOrUpdateCamelKIntegration(CamelKIntegration integration) throws ApiException {
-        Object integrationList = customObjectsApi.listNamespacedCustomObject("camel.apache.org", "v1", namespace, "integrations", null, null, null, null, null, null, null, null, null, null);
+        Object rawObj = customObjectsApi.listNamespacedCustomObject("camel.apache.org", "v1", namespace, "integrations").execute();
+        CamelKIntegrationList integrationList = JSON.deserialize(JSON.serialize(rawObj), new TypeToken<CamelKIntegrationList>(){}.getType());
         Optional<String> name = getName(integration);
-        Optional<Map<String, Object>> existingItemMetadata = ((List<Object>) ((Map<String, Object>) integrationList).get("items"))
+        Optional<V1ObjectMeta> existingItemMetadata = integrationList.getItems()
                 .stream()
-                .map(item -> ((Map<String, Map<String, Object>>) item)
-                                .getOrDefault("metadata", Collections.emptyMap()))
-                .filter(metadata -> {
-                    Optional<String> itemName = Optional.of(metadata.get("name"))
-                            .map(String::valueOf);
-                    return name.equals(itemName);
-                })
+                .filter(item -> getName(item).equals(name))
+                .map(KubernetesObject::getMetadata)
                 .findAny();
         boolean alreadyExists = existingItemMetadata.isPresent();
         if (alreadyExists) {
-            String resourceVersion = String.valueOf(existingItemMetadata.get().get("resourceVersion"));
+            String resourceVersion = existingItemMetadata.map(V1ObjectMeta::getResourceVersion).orElse(null);
             integration.getMetadata().setResourceVersion(resourceVersion);
-            customObjectsApi.replaceNamespacedCustomObject("camel.apache.org", "v1", namespace, "integrations", name.orElse(""), integration, null, null);
+            customObjectsApi.replaceNamespacedCustomObject("camel.apache.org", "v1", namespace, "integrations", name.orElse(""), integration).execute();
         } else {
-            customObjectsApi.createNamespacedCustomObject("camel.apache.org", "v1", namespace, "integrations", integration, null, null, null);
+            customObjectsApi.createNamespacedCustomObject("camel.apache.org", "v1", namespace, "integrations", integration).execute();
         }
+    }
+
+    private <T extends KubernetesObject> void createOrUpdateCustomResource(String group, String version, String plural, T obj, Type listType) throws ApiException {
+        Object rawListObj = customObjectsApi.listNamespacedCustomObject(group, version, namespace, plural).execute();
+        KubernetesListObject listObject = JSON.deserialize(JSON.serialize(rawListObj), listType);
+        Optional<String> name = getName(obj);
+        Optional<V1ObjectMeta> existingItemMetadata = listObject.getItems()
+                .stream()
+                .filter(item -> getName(item).equals(name))
+                .map(KubernetesObject::getMetadata)
+                .findAny();
+        boolean alreadyExists = existingItemMetadata.isPresent();
+        if (alreadyExists) {
+            String resourceVersion = existingItemMetadata.map(V1ObjectMeta::getResourceVersion).orElse(null);
+            obj.getMetadata().setResourceVersion(resourceVersion);
+            customObjectsApi.replaceNamespacedCustomObject(group, version, namespace, plural, name.orElse(""), obj).execute();
+        } else {
+            customObjectsApi.createNamespacedCustomObject(group, version, namespace, plural, obj).execute();
+        }
+    }
+
+    private boolean listContains(KubernetesListObject objectList, KubernetesObject object) {
+        Optional<String> name = getName(object);
+        return objectList.getItems().stream()
+                .anyMatch(m -> getName(m).equals(name));
+    }
+
+    private Optional<String> getName(KubernetesObject obj) {
+        return Optional.ofNullable(obj.getMetadata()).map(V1ObjectMeta::getName);
     }
 }
