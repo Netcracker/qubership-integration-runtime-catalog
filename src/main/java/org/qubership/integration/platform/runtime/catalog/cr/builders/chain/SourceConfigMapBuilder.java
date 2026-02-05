@@ -23,6 +23,7 @@ import java.util.List;
 @Component
 public class SourceConfigMapBuilder implements ResourceBuilder<Chain> {
     public static final String CONTENT_KEY = "content";
+    public static final String CHAIN_ID_LABEL = "org.qubership.integration.platform/chainId";
 
     private final YAMLMapper yamlMapper;
     private final IntegrationSourceBuilderFactory integrationSourceBuilderFactory;
@@ -64,8 +65,9 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Chain> {
             metadataNode.set("name", metadataNode.textNode(configMapNamingStrategy.getName(context)));
 
             String integrationName = integrationResourceNamingStrategy.getName(context.updateTo(Collections.emptyList()));
-            metadataNode.withObject("labels")
-                    .set("camel.apache.org/integration", metadataNode.textNode(integrationName));
+            ObjectNode labelsNode = metadataNode.withObject("labels");
+            labelsNode.set("camel.apache.org/integration", labelsNode.textNode(integrationName));
+            labelsNode.set(CHAIN_ID_LABEL, labelsNode.textNode(chain.getId()));
 
             configMapNode.withObjectProperty("data")
                     .set(CONTENT_KEY, configMapNode.textNode(sourceBuilder.build(chain, sourceBuilderContext)));
