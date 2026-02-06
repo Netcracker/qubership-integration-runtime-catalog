@@ -28,13 +28,10 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.D
 import org.qubership.integration.platform.runtime.catalog.model.ElementRoute;
 import org.qubership.integration.platform.runtime.catalog.model.MultiConsumer;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.model.deployment.RouteType;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeploymentsDTO;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentUpdate;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentsUpdate;
-import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -45,8 +42,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.DeploymentRoute;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.DeploymentRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentRequest;
@@ -58,12 +53,12 @@ import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainF
 import org.qubership.integration.platform.runtime.catalog.util.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.net.MalformedURLException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -72,8 +67,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Objects.isNull;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
 import static org.qubership.integration.platform.runtime.catalog.util.TriggerUtils.*;
 
 @Slf4j
@@ -86,11 +79,11 @@ public class DeploymentService {
     private final ElementRepository elementRepository;
 
     private final ChainFinderService chainFinderService;
-    private final SystemService systemService;
     private final SnapshotService snapshotService;
     private final ActionsLogService actionLogger;
     private final DeploymentBuilderService deploymentBuilderService;
     private final TransactionHandler transactionHandler;
+    private final RoutesGetterService routesGetterService;
 
     @Value("${qip.chains.triggers.check.enabled}")
     private boolean triggersCheckEnabled;
@@ -132,19 +125,20 @@ public class DeploymentService {
     public DeploymentService(DeploymentRepository deploymentRepository,
                              ElementRepository elementRepository,
                              ChainFinderService chainFinderService,
-                             SystemService systemService,
                              SnapshotService snapshotService,
                              ActionsLogService actionLogger,
                              DeploymentBuilderService deploymentBuilderService,
-                             TransactionHandler transactionHandler) {
+                             TransactionHandler transactionHandler,
+                             RoutesGetterService routesGetterService
+    ) {
         this.deploymentRepository = deploymentRepository;
         this.elementRepository = elementRepository;
         this.chainFinderService = chainFinderService;
-        this.systemService = systemService;
         this.snapshotService = snapshotService;
         this.actionLogger = actionLogger;
         this.deploymentBuilderService = deploymentBuilderService;
         this.transactionHandler = transactionHandler;
+        this.routesGetterService = routesGetterService;
     }
 
     @Transactional
@@ -301,30 +295,9 @@ public class DeploymentService {
 
     private List<DeploymentRoute> buildDeploymentRoutes(Deployment deployment) {
         String snapshotId = deployment.getSnapshot().getId();
-
-        try {
-            List<DeploymentRoute> allRoutes = new ArrayList<>();
-
-            if (registerOnIncomingGateways) {
-                // external and internal triggers
-                List<DeploymentRoute> triggers = buildTriggersRoutes(snapshotId);
-                allRoutes.addAll(triggers);
-            }
-            if (registerOnEgress) {
-                // external senders
-                List<DeploymentRoute> senders = buildHttpSendersRoutes(snapshotId);
-                allRoutes.addAll(senders);
-                // external services
-                List<DeploymentRoute> serviceRoutes = buildServicesRoutes(snapshotId);
-                allRoutes.addAll(serviceRoutes);
-            }
-
-            log.debug("Routes for registration in control plane: {}", allRoutes);
-            return allRoutes;
-        } catch (Exception e) {
-            log.error("Failed to build egress routes for deployment", e);
-            throw new RuntimeException("Failed to build egress routes for deployment", e);
-        }
+        Specification<ChainElement> specification = (root, query, criteriaBuilder) ->
+                criteriaBuilder.equal(root.get("snapshot").get("id"), snapshotId);
+        return routesGetterService.getRoutes(specification);
     }
 
     public boolean checkRouteExists(ElementRoute route, String excludeChainId) {
@@ -557,106 +530,8 @@ public class DeploymentService {
         return result;
     }
 
-    /**
-     * Post egress routes for [http-sender, graphql-sender]
-     */
-    private List<DeploymentRoute> buildHttpSendersRoutes(String snapshotId) {
-        return elementRepository.findAllBySnapshotIdAndTypeIn(
-                        snapshotId, List.of(HTTP_SENDER_COMPONENT, GRAPHQL_SENDER_COMPONENT))
-                .stream()
-                .filter(sender -> {
-                    Object isExternalCall = sender.getProperty(CamelOptions.IS_EXTERNAL_CALL);
-                    return isExternalCall == null || (boolean) isExternalCall;
-                })
-                .map(sender -> {
-                    try {
-                        String targetURL = SimpleHttpUriUtils.extractProtocolAndDomainWithPort(sender.getPropertyAsString(CamelOptions.URI));
-
-                        String gatewayPrefix = String.format("/%s/%s/%s", sender.getType(), sender.getOriginalId(), getEncodedURL(getHttpConnectionTimeout(sender), targetURL));
-
-                        DeploymentRoute.DeploymentRouteBuilder builder = DeploymentRoute.builder()
-                                .path(targetURL)
-                                .variableName(ElementUtils.buildRouteVariableName(sender))
-                                .gatewayPrefix(gatewayPrefix)
-                                .type(RouteType.EXTERNAL_SENDER);
-
-                        if (sender.getType().equalsIgnoreCase(HTTP_SENDER_COMPONENT)) {
-                            builder.connectTimeout(getHttpConnectionTimeout(sender));
-                        }
-
-                        return builder.build();
-                    } catch (MalformedURLException e) {
-                        throw new DeploymentProcessingException("Failed to post egress routes. Invalid URI in HTTP sender element");
-                    }
-                })
-                .toList();
-    }
-
-    private List<DeploymentRoute> buildTriggersRoutes(String snapshotId) {
-        return elementRepository.findAllBySnapshotIdAndType(snapshotId, getHttpTriggerTypeName()).stream()
-                .map(TriggerUtils::getHttpTriggerRoute)
-                .map(route -> DeploymentRoute.builder()
-                        .path("/" + route.getPath())
-                        .type(RouteType.convertTriggerType(route.isExternal(), route.isPrivate()))
-                        .connectTimeout(route.getConnectionTimeout())
-                        .build())
-                .collect(Collectors.toList());
-    }
-
-    private List<DeploymentRoute> buildServicesRoutes(String snapshotId) {
-        List<ChainElement> serviceCallElements = elementRepository.findAllBySnapshotIdAndType(snapshotId, SERVICE_CALL_COMPONENT);
-        Map<String, List<ChainElement>> systemsIds = serviceCallElements
-                .stream()
-                .collect(Collectors.groupingBy(
-                        element -> (String) element.getProperty(CamelOptions.SYSTEM_ID),
-                        Collectors.mapping(Function.identity(), Collectors.toList())
-                ));
-
-        List<IntegrationSystem> systems = systemService.findSystemsRequiredGatewayRoutes(systemsIds.keySet());
-        List<DeploymentRoute> routes = new ArrayList<>();
-        for (IntegrationSystem system : systems) {
-            Environment environment = systemService.getActiveEnvironment(system);
-
-            String path = systemService.getActiveEnvAddress(environment);
-            Long connectionTimeout = systemService.getConnectTimeout(environment);
-
-            RouteType routeType = getRouteTypeForSystemType(system.getIntegrationSystemType());
-
-            List<ChainElement> elements = systemsIds.get(system.getId());
-            for (ChainElement element : elements) {
-                String gatewayPrefix = String.format("/system/%s", element.getOriginalId());
-
-                routes.add(DeploymentRoute.builder()
-                        .type(routeType)
-                        .path(path)
-                        .gatewayPrefix(gatewayPrefix)
-                        .variableName(ElementUtils.buildRouteVariableName(element))
-                        .connectTimeout(connectionTimeout)
-                        .build());
-            }
-        }
-
-        return routes;
-    }
-
-    private RouteType getRouteTypeForSystemType(IntegrationSystemType systemType) {
-        return isNull(systemType) ? null : switch (systemType) {
-            case EXTERNAL -> RouteType.EXTERNAL_SERVICE;
-            case INTERNAL -> RouteType.INTERNAL_SERVICE;
-            case IMPLEMENTED -> RouteType.IMPLEMENTED_SERVICE;
-        };
-    }
-
     public void subscribeMessages(MultiConsumer.Consumer5<String, String, String, GenericMessageType, Map<String, String>> messagesCallback) {
         this.messagesCallback = messagesCallback;
-    }
-
-    private String getEncodedURL(final Long connectTimeout, final String targetURL) {
-        String senderURL = targetURL;
-        if (!Objects.isNull(connectTimeout) && connectTimeout > -1L) {
-            senderURL = senderURL + connectTimeout;
-        }
-        return HashUtils.sha1hex(senderURL);
     }
 
     public static void clearDeploymentsUpdateCache(Long version) {
