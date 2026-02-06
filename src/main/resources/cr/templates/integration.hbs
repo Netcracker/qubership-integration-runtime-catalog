@@ -11,6 +11,7 @@ spec:
       imagePullPolicy: {{imagePullPolicy}}
 {{/with}}
     mount:
+      hotReload: true
       resources:
 {{#each resources}}
       - "{{.}}"
