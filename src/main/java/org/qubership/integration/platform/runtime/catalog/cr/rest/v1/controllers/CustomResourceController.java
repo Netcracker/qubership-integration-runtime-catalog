@@ -24,17 +24,17 @@ import java.util.List;
 @CrossOrigin(origins = "*")
 @RequestMapping("/v1/cr")
 @Tag(
-        name = "custom-resource-builder-controller",
-        description = "Custom Resource Builder Controller"
+        name = "custom-resource-controller",
+        description = "Custom Resource Build and Deploy Controller"
 )
-public class CustomResourceBuilderController {
+public class CustomResourceController {
     private final ChainRepository chainRepository;
     private final CustomResourceBuildService customResourceBuildService;
     private final CustomResourceDeployService customResourceDeployService;
     private final CustomResourceOptionsProvider customResourceOptionsProvider;
 
     @Autowired
-    public CustomResourceBuilderController(
+    public CustomResourceController(
             ChainRepository chainRepository,
             CustomResourceBuildService customResourceBuildService,
             CustomResourceDeployService customResourceDeployService,
@@ -47,7 +47,7 @@ public class CustomResourceBuilderController {
     }
 
     @PostMapping(produces = MediaType.APPLICATION_YAML_VALUE)
-    @Operation(description = "Build CR for specified snapshots")
+    @Operation(description = "Build K8s resources for specified chains")
     public String buildCustomResource(@RequestBody ResourceBuildRequest request) {
         log.debug("Request to build a CR for chains: {}", request.getChainIds());
         List<Chain> chains = chainRepository.findAllByIdIn(request.getChainIds());
@@ -60,8 +60,10 @@ public class CustomResourceBuilderController {
     @PostMapping("/deploy")
     @Operation(description = "Deploy as Camel-K custom resource")
     public ResponseEntity<Void> deployCustomResource(@Valid @RequestBody ResourceDeployRequest request) {
-        log.debug("Request to deploy a Camel-K custom resource with name {} for chains: {}",
-                request.getName(), request.getChainIds());
+        log.debug("Request to deploy a Camel-K custom resource with name {} for chains {} using {} mode.",
+                request.getName(), request.getChainIds(), request.getMode());
+
+
 
         List<Chain> chains = chainRepository.findAllByIdIn(request.getChainIds());
         ResourceBuildOptions options = customResourceOptionsProvider.getOptions(request);

@@ -21,4 +21,7 @@ public class ResourceDeployRequest {
     @NotEmpty(message = "At least one integration chain ID should be specified")
     @Builder.Default
     private List<String> chainIds = Collections.emptyList();
+
+    @Builder.Default
+    DeployMode mode = DeployMode.REWRITE;
 }
