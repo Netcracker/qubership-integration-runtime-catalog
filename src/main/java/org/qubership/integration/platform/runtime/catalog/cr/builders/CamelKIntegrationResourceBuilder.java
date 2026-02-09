@@ -61,7 +61,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
     private final Handlebars templates;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> serviceNamingStrategy;
-    private final NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<Chain>> chainDslConfigMapNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationsConfigurationConfigMapNamingStrategy;
     private final SourceMountPointGetter sourceMountPointGetter;
 
@@ -71,13 +71,13 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
             @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
             @Qualifier("serviceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> serviceNamingStrategy,
             @Qualifier("integrationsConfigurationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationsConfigurationConfigMapNamingStrategy,
-            NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy,
+            @Qualifier("chainDslConfigMapNamingStrategy") NamingStrategy<ResourceBuildContext<Chain>> chainDslConfigMapNamingStrategy,
             SourceMountPointGetter sourceMountPointGetter
     ) {
         this.templates = templates;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
         this.serviceNamingStrategy = serviceNamingStrategy;
-        this.configMapNamingStrategy = configMapNamingStrategy;
+        this.chainDslConfigMapNamingStrategy = chainDslConfigMapNamingStrategy;
         this.integrationsConfigurationConfigMapNamingStrategy = integrationsConfigurationConfigMapNamingStrategy;
         this.sourceMountPointGetter = sourceMountPointGetter;
     }
@@ -135,7 +135,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
                 .stream()
                 .map(chain -> {
                     ResourceBuildContext<Chain> chainResourceBuildContext = context.updateTo(chain);
-                    String name = configMapNamingStrategy.getName(chainResourceBuildContext);
+                    String name = chainDslConfigMapNamingStrategy.getName(chainResourceBuildContext);
                     return String.format("configmap:%s/%s@%s",
                             name, SourceConfigMapBuilder.CONTENT_KEY, sourceMountPointGetter.apply(chainResourceBuildContext));
                 })

@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.UUID;
 
-@Component
-public class ConfigMapNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<Chain>> {
+@Component("chainDslConfigMapNamingStrategy")
+public class ChainDslConfigMapNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<Chain>> {
     @Value("${app.prefix}")
     private String prefix;
 
