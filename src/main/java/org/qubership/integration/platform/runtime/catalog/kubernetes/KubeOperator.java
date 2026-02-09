@@ -166,10 +166,12 @@ public class KubeOperator {
             createOrUpdateService(service);
         } else if (resource instanceof CamelKIntegration integration) {
             createOrUpdateCustomResource("camel.apache.org", "v1", "integrations",
-                    integration, new TypeToken<CamelKIntegrationList>(){}.getType());
+                    integration, new TypeToken<CamelKIntegrationList>() {
+                    }.getType());
         } else if (resource instanceof V1ServiceMonitor serviceMonitor) {
             createOrUpdateCustomResource("monitoring.coreos.com", "v1", "servicemonitors",
-                    serviceMonitor, new TypeToken<V1ServiceMonitorList>(){}.getType());
+                    serviceMonitor, new TypeToken<V1ServiceMonitorList>() {
+                    }.getType());
         } else {
             throw new CustomResourceDeployError("Unsupported resource type: " + resource);
         }
@@ -190,25 +192,6 @@ public class KubeOperator {
             coreApi.replaceNamespacedService(getName(service).orElse(""), namespace, service).execute();
         } else {
             coreApi.createNamespacedService(namespace, service).execute();
-        }
-    }
-
-    private void createOrUpdateCamelKIntegration(CamelKIntegration integration) throws ApiException {
-        Object rawObj = customObjectsApi.listNamespacedCustomObject("camel.apache.org", "v1", namespace, "integrations").execute();
-        CamelKIntegrationList integrationList = JSON.deserialize(JSON.serialize(rawObj), new TypeToken<CamelKIntegrationList>(){}.getType());
-        Optional<String> name = getName(integration);
-        Optional<V1ObjectMeta> existingItemMetadata = integrationList.getItems()
-                .stream()
-                .filter(item -> getName(item).equals(name))
-                .map(KubernetesObject::getMetadata)
-                .findAny();
-        boolean alreadyExists = existingItemMetadata.isPresent();
-        if (alreadyExists) {
-            String resourceVersion = existingItemMetadata.map(V1ObjectMeta::getResourceVersion).orElse(null);
-            integration.getMetadata().setResourceVersion(resourceVersion);
-            customObjectsApi.replaceNamespacedCustomObject("camel.apache.org", "v1", namespace, "integrations", name.orElse(""), integration).execute();
-        } else {
-            customObjectsApi.createNamespacedCustomObject("camel.apache.org", "v1", namespace, "integrations", integration).execute();
         }
     }
 
