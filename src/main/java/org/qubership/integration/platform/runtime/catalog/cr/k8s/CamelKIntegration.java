@@ -93,6 +93,9 @@ public class CamelKIntegration implements KubernetesObject {
             public static class MountTrait {
                 @SerializedName("resources")
                 private List<String> resources;
+
+                @SerializedName("hotReload")
+                private Boolean hotReload;
             }
 
             @Data
