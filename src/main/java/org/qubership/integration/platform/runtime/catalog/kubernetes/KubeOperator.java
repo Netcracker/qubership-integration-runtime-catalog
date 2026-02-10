@@ -36,12 +36,14 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.k
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubePod;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.PodRunningStatus;
+import org.springframework.http.HttpStatus;
 
 import java.lang.reflect.Type;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
+import static org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil.getName;
 
 @Slf4j
 public class KubeOperator {
@@ -79,9 +81,10 @@ public class KubeOperator {
     }
 
     public List<KubeDeployment> getDeploymentsByLabel(String labelKey, String labelValue) throws KubeApiException {
-        String labelSelector = labelKey + (isNull(labelValue) ? "" : (" = " + labelValue));
         try {
-            V1DeploymentList list = appsApi.listNamespacedDeployment(namespace).labelSelector(labelSelector).execute();
+            V1DeploymentList list = appsApi.listNamespacedDeployment(namespace)
+                    .labelSelector(toSelector(labelKey, labelValue))
+                    .execute();
 
             return list.getItems().stream()
                     .map(item -> KubeDeployment.builder()
@@ -105,7 +108,9 @@ public class KubeOperator {
 
     public List<KubePod> getPodsByLabel(String labelKey, String labelValue) throws KubeApiException {
         try {
-            V1PodList list = coreApi.listNamespacedPod(namespace).labelSelector(labelKey + "=" + labelValue).execute();
+            V1PodList list = coreApi.listNamespacedPod(namespace)
+                    .labelSelector(toSelector(labelKey, labelValue))
+                    .execute();
 
             return list.getItems().stream()
                     .map(item -> {
@@ -195,9 +200,15 @@ public class KubeOperator {
         }
     }
 
-    private <T extends KubernetesObject> void createOrUpdateCustomResource(String group, String version, String plural, T obj, Type listType) throws ApiException {
+    private <T extends KubernetesObject> void createOrUpdateCustomResource(
+            String group,
+            String version,
+            String plural,
+            T obj,
+            Type listType
+    ) throws ApiException {
         Object rawListObj = customObjectsApi.listNamespacedCustomObject(group, version, namespace, plural).execute();
-        KubernetesListObject listObject = JSON.deserialize(JSON.serialize(rawListObj), listType);
+        KubernetesListObject listObject = fromRawObject(rawListObj, listType);
         Optional<String> name = getName(obj);
         Optional<V1ObjectMeta> existingItemMetadata = listObject.getItems()
                 .stream()
@@ -220,7 +231,104 @@ public class KubeOperator {
                 .anyMatch(m -> getName(m).equals(name));
     }
 
-    private Optional<String> getName(KubernetesObject obj) {
-        return Optional.ofNullable(obj.getMetadata()).map(V1ObjectMeta::getName);
+    private String toSelector(String labelName, String labelValue) {
+        return isNull(labelValue) ? labelName : String.format("%s=%s", labelName, labelValue);
+    }
+
+    private <T> T fromRawObject(Object obj, Type type) {
+        return JSON.deserialize(JSON.serialize(obj), type);
+    }
+
+    public Optional<CamelKIntegration> getIntegration(String name) throws KubeApiException {
+        try {
+            Object rawObj = customObjectsApi.getNamespacedCustomObject("camel.apache.org", "v1", namespace, "integrations", name).execute();
+            CamelKIntegration integration = fromRawObject(rawObj, new TypeToken<CamelKIntegration>() {}.getType());
+            return Optional.ofNullable(integration);
+        } catch (ApiException exception) {
+            if (exception.getCode() == HttpStatus.NOT_FOUND.value()) {
+                return Optional.empty();
+            } else {
+                throw new KubeApiException("Failed to get Camel K integration: " + name, exception);
+            }
+        }
+    }
+
+    public List<V1ServiceMonitor> getServiceMonitorsByLabel(String labelName, String labelValue) throws KubeApiException {
+        try {
+            Object rawListObj = customObjectsApi
+                    .listNamespacedCustomObject("monitoring.coreos.com", "v1", namespace, "servicemonitors")
+                    .labelSelector(toSelector(labelName, labelValue))
+                    .execute();
+            V1ServiceMonitorList listObject = fromRawObject(rawListObj, new TypeToken<V1ServiceMonitorList>() {}.getType());
+            return listObject.getItems();
+        } catch (ApiException exception) {
+            throw new KubeApiException("Failed to get services.", exception);
+        }
+    }
+
+    public List<V1Service> getServicesByLabel(String labelName, String labelValue) throws KubeApiException {
+        try {
+            return coreApi.listNamespacedService(namespace)
+                    .labelSelector(toSelector(labelName, labelValue))
+                    .execute()
+                    .getItems();
+        } catch (ApiException exception) {
+            throw new KubeApiException("Failed to get services.", exception);
+        }
+    }
+
+    public List<V1ConfigMap> getConfigMapsByLabel(String labelName, String labelValue) throws KubeApiException {
+        try {
+            return coreApi.listNamespacedConfigMap(namespace)
+                    .labelSelector(toSelector(labelName, labelValue))
+                    .execute()
+                    .getItems();
+        } catch (ApiException exception) {
+            throw new KubeApiException("Failed to get config maps.", exception);
+        }
+    }
+
+    public void deleteConfigMap(String name) throws KubeApiException {
+        try {
+            coreApi.deleteNamespacedConfigMap(name, namespace).execute();
+        } catch (ApiException exception) {
+            if (exception.getCode() == HttpStatus.NOT_FOUND.value()) {
+                log.warn("Config map with name {} not found.", name);
+            } else {
+                throw new KubeApiException("Failed to delete config map: " + name, exception);
+            }
+        }
+    }
+
+    public void deleteService(String name) throws KubeApiException {
+        try {
+            coreApi.deleteNamespacedService(name, namespace).execute();
+        } catch (ApiException exception) {
+            if (exception.getCode() == HttpStatus.NOT_FOUND.value()) {
+                log.warn("Service with name {} not found.", name);
+            } else {
+                throw new KubeApiException("Failed to delete service: " + name, exception);
+            }
+        }
+    }
+
+    public void deleteServiceMonitor(String name) throws KubeApiException {
+        deleteCustomObject("monitoring.coreos.com", "v1", "servicemonitors", name);
+    }
+
+    public void deleteCamelKIntegration(String name) throws KubeApiException {
+        deleteCustomObject("camel.apache.org", "v1", "integrations", name);
+    }
+
+    private void deleteCustomObject(String group, String version, String plural, String name) throws KubeApiException {
+        try {
+            customObjectsApi.deleteNamespacedCustomObject(group, version, namespace, plural, name).execute();
+        } catch (ApiException exception) {
+            if (exception.getCode() == HttpStatus.NOT_FOUND.value()) {
+                log.warn("Object with name {} not found.", name);
+            } else {
+                throw new KubeApiException("Failed to delete object: " + name, exception);
+            }
+        }
     }
 }

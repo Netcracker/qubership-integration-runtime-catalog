@@ -9,9 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder(toBuilder = true)
-public class MonitoringOptions {
+public class ServiceOptions {
     @Builder.Default
     private boolean enabled = true;
-
-    private String interval;
 }

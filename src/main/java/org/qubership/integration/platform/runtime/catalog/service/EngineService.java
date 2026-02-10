@@ -34,11 +34,12 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKConstants.CAMEL_K_INTEGRATION_LABEL;
+
 
 @Slf4j
 @Component
 public class EngineService {
-    private static final String CAMEL_K_INTEGRATION_LABEL = "camel.apache.org/integration";
     private static final String ENGINE_NAME_LABEL = "name";
 
     private final KubeOperator operator;

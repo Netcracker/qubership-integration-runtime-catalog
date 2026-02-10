@@ -15,13 +15,21 @@ public class ChainDslConfigMapNamingStrategy extends K8sResourceNamingStrategy<R
     @Override
     protected String proposeName(ResourceBuildContext<Chain> context) {
         Chain chain = context.getData();
-        String identifier = context.getBuildCache()
-                .computeIfAbsent(getKey(chain), k -> UUID.randomUUID())
+        return context.getBuildCache()
+                .computeIfAbsent(getKey(chain), k -> createUniqueName())
                 .toString();
-        return String.format("%s-chain-%s", prefix, identifier);
     }
 
     private String getKey(Chain chain) {
         return this.getClass().getSimpleName() + "-" + chain.getId();
+    }
+
+    private String createUniqueName() {
+        return String.format("%s-chain-%s", prefix, UUID.randomUUID());
+    }
+
+    public void useName(ResourceBuildContext<Chain> context, String name) {
+        Chain chain = context.getData();
+        context.getBuildCache().put(getKey(chain), name);
     }
 }

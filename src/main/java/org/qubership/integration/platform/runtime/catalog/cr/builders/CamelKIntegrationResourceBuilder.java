@@ -146,7 +146,9 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Ch
                     IntegrationsConfigurationConfigMapBuilder.CONTENT_KEY, QIP_CHAINS_CONFIGURATION_PATH);
             resources.add(resource);
         }
-        return resources;
+        Set<String> result = new HashSet<>(context.getBuildInfo().getOptions().getResources());
+        result.addAll(resources);
+        return result;
     }
 
     private Collection<String> buildCamelProperties(ResourceBuildContext<List<Chain>> context) {

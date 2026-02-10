@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.runtime.catalog.cr.cfg;
+package org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,9 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SourceDefinition {
-    private String id;
-    private String name;
-    private String language;
+public class LibraryDefinition {
+    private String specificationId;
     private String location;
 }

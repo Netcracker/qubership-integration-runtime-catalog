@@ -6,8 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuildError;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
-import org.qubership.integration.platform.runtime.catalog.cr.cfg.IntegrationsConfiguration;
-import org.qubership.integration.platform.runtime.catalog.cr.cfg.IntegrationsConfigurationBuilder;
+import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfiguration;
+import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfigurationBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +18,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
+
+import static org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKConstants.CAMEL_K_INTEGRATION_LABEL;
 
 @Slf4j
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -58,15 +60,22 @@ public class IntegrationsConfigurationConfigMapBuilder implements ResourceBuilde
             configMapNode.set("apiVersion", configMapNode.textNode("v1"));
             configMapNode.set("kind", configMapNode.textNode("ConfigMap"));
 
+            String name = namingStrategy.getName(context);
             ObjectNode metadataNode = configMapNode.withObjectProperty("metadata");
-            metadataNode.set("name", metadataNode.textNode(namingStrategy.getName(context)));
+            metadataNode.set("name", metadataNode.textNode(name));
 
             String integrationName = integrationResourceNamingStrategy.getName(context.updateTo(Collections.emptyList()));
             metadataNode.withObject("labels")
-                    .set("camel.apache.org/integration", metadataNode.textNode(integrationName));
+                    .set(CAMEL_K_INTEGRATION_LABEL, metadataNode.textNode(integrationName));
 
 
             IntegrationsConfiguration integrationsConfiguration = integrationsConfigurationBuilder.build(context);
+
+            if (context.getBuildCache().containsKey(name)) {
+                integrationsConfiguration = ((IntegrationsConfiguration) context.getBuildCache().get(name))
+                        .merge(integrationsConfiguration);
+            }
+
             String content = integrationsConfigurationMapper.writeValueAsString(integrationsConfiguration);
             configMapNode.withObjectProperty("data")
                     .set(CONTENT_KEY, configMapNode.textNode(content));

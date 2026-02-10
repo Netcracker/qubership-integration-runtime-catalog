@@ -45,7 +45,7 @@ public class ServiceResourceBuilder  implements ResourceBuilder<List<Chain>> {
 
     @Override
     public boolean enabled(ResourceBuildContext<List<Chain>> context) {
-        return true;
+        return context.getBuildInfo().getOptions().getService().isEnabled();
     }
 
     @Override

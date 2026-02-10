@@ -1,47 +1,50 @@
 package org.qubership.integration.platform.runtime.catalog.cr;
 
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
-import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.BuildNamingContext;
-import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 @Slf4j
 @Service
 public class CustomResourceBuildService {
-    private final NamingStrategy<BuildNamingContext> buildNamingStrategy;
     private final List<ResourceBuilder<Chain>> chainResourceBuilders;
     private final List<ResourceBuilder<List<Chain>>> commonResourceBuilders;
+    private final CustomResourceBuildContextFactory buildContextFactory;
 
     @Autowired
     public CustomResourceBuildService(
-            NamingStrategy<BuildNamingContext> buildNamingStrategy,
             List<ResourceBuilder<Chain>> chainResourceBuilders,
-            List<ResourceBuilder<List<Chain>>> commonResourceBuilders
+            List<ResourceBuilder<List<Chain>>> commonResourceBuilders,
+            CustomResourceBuildContextFactory buildContextFactory
     ) {
-        this.buildNamingStrategy = buildNamingStrategy;
         this.chainResourceBuilders = chainResourceBuilders;
         this.commonResourceBuilders = commonResourceBuilders;
+        this.buildContextFactory = buildContextFactory;
     }
 
-    public String buildCustomResource(
-            List<Chain> chains,
-            ResourceBuildOptions options
+    public String buildResources(ResourceBuildRequest request) {
+        return buildResources(request, false);
+    }
+
+    public String buildResources(ResourceBuildRequest request, boolean appendToExisting) {
+        ResourceBuildContext<List<Chain>> buildContext =
+                buildContextFactory.createResourceBuildContext(request, appendToExisting);
+        return buildResources(buildContext);
+    }
+
+    public String buildResources(
+            ResourceBuildContext<List<Chain>> buildContext
     ) {
-        BuildInfo buildInfo = createBuildInfo(options);
-        ResourceBuildContext<Void> buildContext = ResourceBuildContext.create(buildInfo);
         StringBuilder stringBuilder = new StringBuilder();
         try {
-            for (Chain chain : chains) {
+            for (Chain chain : buildContext.getData()) {
                 applyBuilders(stringBuilder, buildContext.updateTo(chain), chainResourceBuilders);
             }
-            applyBuilders(stringBuilder, buildContext.updateTo(chains), commonResourceBuilders);
+            applyBuilders(stringBuilder, buildContext, commonResourceBuilders);
             return stringBuilder.toString();
         } catch (Exception e) {
             log.error("Failed to build custom resource", e);
@@ -61,18 +64,5 @@ public class CustomResourceBuildService {
         }
     }
 
-    private BuildInfo createBuildInfo(ResourceBuildOptions options) {
-        String id = UUID.randomUUID().toString();
-        Instant timestamp = Instant.now();
-        BuildNamingContext buildNamingContext = BuildNamingContext.builder()
-                .id(id)
-                .timestamp(timestamp)
-                .build();
-        return BuildInfo.builder()
-                .id(id)
-                .timestamp(timestamp)
-                .name(buildNamingStrategy.getName(buildNamingContext))
-                .options(options)
-                .build();
-    }
+
 }

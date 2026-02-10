@@ -19,6 +19,8 @@ import org.springframework.stereotype.Component;
 import java.util.Collections;
 import java.util.List;
 
+import static org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKConstants.CAMEL_K_INTEGRATION_LABEL;
+
 @Slf4j
 @Component
 public class SourceConfigMapBuilder implements ResourceBuilder<Chain> {
@@ -66,7 +68,7 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Chain> {
 
             String integrationName = integrationResourceNamingStrategy.getName(context.updateTo(Collections.emptyList()));
             ObjectNode labelsNode = metadataNode.withObject("labels");
-            labelsNode.set("camel.apache.org/integration", labelsNode.textNode(integrationName));
+            labelsNode.set(CAMEL_K_INTEGRATION_LABEL, labelsNode.textNode(integrationName));
             labelsNode.set(CHAIN_ID_LABEL, labelsNode.textNode(chain.getId()));
 
             configMapNode.withObjectProperty("data")

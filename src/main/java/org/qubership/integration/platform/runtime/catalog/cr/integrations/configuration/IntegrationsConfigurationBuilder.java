@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.runtime.catalog.cr.cfg;
+package org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration;
 
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;

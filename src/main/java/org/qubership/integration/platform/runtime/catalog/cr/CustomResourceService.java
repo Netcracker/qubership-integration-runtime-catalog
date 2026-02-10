@@ -1,0 +1,148 @@
+package org.qubership.integration.platform.runtime.catalog.cr;
+
+import com.coreos.monitoring.models.V1ServiceMonitor;
+import com.coreos.monitoring.models.V1ServiceMonitorList;
+import io.kubernetes.client.openapi.ApiException;
+import io.kubernetes.client.openapi.models.V1ConfigMap;
+import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1Service;
+import io.kubernetes.client.util.ModelMapper;
+import io.kubernetes.client.util.Yaml;
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrationList;
+import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
+import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
+import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Service;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder.CHAIN_ID_LABEL;
+import static org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKConstants.CAMEL_K_INTEGRATION_LABEL;
+import static org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil.getName;
+
+@Slf4j
+@Service
+public class CustomResourceService {
+    public record IntegrationResources(
+            CamelKIntegration integration,
+            V1ServiceMonitor serviceMonitor,
+            V1Service service,
+            V1ConfigMap integrationsConfiguration,
+            Map<String, V1ConfigMap> integrationSources
+    ) {}
+
+    private final KubeOperator kubeOperator;
+    @Qualifier("integrationsConfigurationResourceNamingStrategy")
+    private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationsConfigurationConfigMapNamingStrategy;
+
+    @Autowired
+    public CustomResourceService(
+            KubeOperator kubeOperator,
+            @Qualifier("integrationsConfigurationResourceNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Chain>>> integrationsConfigurationConfigMapNamingStrategy
+    ) {
+        this.kubeOperator = kubeOperator;
+        this.integrationsConfigurationConfigMapNamingStrategy = integrationsConfigurationConfigMapNamingStrategy;
+    }
+
+    @PostConstruct
+    public void init() {
+        ModelMapper.addModelMap("camel.apache.org", "v1", "Integration", "Integrations", CamelKIntegration.class, CamelKIntegrationList.class);
+        ModelMapper.addModelMap("monitoring.coreos.com", "v1", "ServiceMonitor", "ServiceMonitors", V1ServiceMonitor.class, V1ServiceMonitorList.class);
+    }
+
+    public void deploy(String resourceText) throws CustomResourceDeployError {
+        try {
+            List<Object> resources = Yaml.loadAll(resourceText);
+            for (Object resource : resources) {
+                kubeOperator.createOrUpdateResource(resource);
+            }
+        } catch (ApiException e) {
+            log.error("Failed to create or update resource: {}", e.getResponseBody());
+            throw new CustomResourceDeployError("Failed to deploy resources", e);
+        } catch (Exception exception) {
+            log.error("Failed to create or update resource", exception);
+            throw new CustomResourceDeployError("Failed to deploy resources", exception);
+        }
+    }
+
+    public void delete(String name) {
+        // FIXME use integration resource name
+        getIntegrationResources(name).ifPresent(resources -> {
+            Optional.ofNullable(resources.integration)
+                    .flatMap(KubeUtil::getName)
+                    .ifPresent(kubeOperator::deleteCamelKIntegration);
+            Optional.ofNullable(resources.serviceMonitor)
+                    .flatMap(KubeUtil::getName)
+                    .ifPresent(kubeOperator::deleteServiceMonitor);
+            Optional.ofNullable(resources.service)
+                    .flatMap(KubeUtil::getName)
+                    .ifPresent(kubeOperator::deleteService);
+            Optional.ofNullable(resources.integrationsConfiguration)
+                    .flatMap(KubeUtil::getName)
+                    .ifPresent(kubeOperator::deleteConfigMap);
+            Optional.ofNullable(resources.integrationSources)
+                    .map(Map::values)
+                    .ifPresent(configMaps ->
+                            configMaps.stream()
+                                    .map(KubeUtil::getName)
+                                    .filter(Optional::isPresent)
+                                    .map(Optional::get)
+                                    .forEach(kubeOperator::deleteConfigMap));
+        });
+    }
+
+    public Optional<IntegrationResources> getIntegrationResources(String name) {
+        Optional<CamelKIntegration> integration = kubeOperator.getIntegration(name);
+        if (integration.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<V1Service> service = kubeOperator
+                .getServicesByLabel(CAMEL_K_INTEGRATION_LABEL, name)
+                .stream()
+                .findFirst();
+        Optional<V1ServiceMonitor> serviceMonitor = kubeOperator
+                .getServiceMonitorsByLabel(CAMEL_K_INTEGRATION_LABEL, name)
+                .stream()
+                .findFirst();
+        List<V1ConfigMap> configMaps = kubeOperator.getConfigMapsByLabel(CAMEL_K_INTEGRATION_LABEL, name);
+        String cfgName = getIntegrationCfgConfigMapName(name);
+        Optional<V1ConfigMap> integrationsConfiguration = configMaps.stream()
+                .filter(cm -> cfgName.equals(getName(cm).orElse(null)))
+                .findFirst();
+        Map<String, V1ConfigMap> integrationSources = configMaps.stream().collect(Collectors.toMap(
+                cm -> Optional.ofNullable(cm.getMetadata())
+                        .map(V1ObjectMeta::getLabels)
+                        .map(labels -> labels.get(CHAIN_ID_LABEL))
+                        .orElse(""),
+                Function.identity(),
+                (a, b) -> a
+        ));
+        return Optional.of(new IntegrationResources(
+                integration.orElse(null),
+                serviceMonitor.orElse(null),
+                service.orElse(null),
+                integrationsConfiguration.orElse(null),
+                integrationSources
+        ));
+    }
+
+    private String getIntegrationCfgConfigMapName(String integrationName) {
+        ResourceBuildContext<List<Chain>> context = ResourceBuildContext.create(BuildInfo.builder()
+                .options(ResourceBuildOptions.builder().name(integrationName).build())
+                .build()).updateTo(Collections.emptyList());
+        return integrationsConfigurationConfigMapNamingStrategy.getName(context);
+    }
+}
