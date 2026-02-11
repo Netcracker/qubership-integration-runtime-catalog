@@ -72,9 +72,6 @@ public class CustomResourceService {
             for (Object resource : resources) {
                 kubeOperator.createOrUpdateResource(resource);
             }
-        } catch (ApiException e) {
-            log.error("Failed to create or update resource: {}", e.getResponseBody());
-            throw new CustomResourceDeployError("Failed to deploy resources", e);
         } catch (Exception exception) {
             log.error("Failed to create or update resource", exception);
             throw new CustomResourceDeployError("Failed to deploy resources", exception);

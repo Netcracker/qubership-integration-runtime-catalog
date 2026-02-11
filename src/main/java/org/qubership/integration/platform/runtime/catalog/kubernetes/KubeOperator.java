@@ -21,6 +21,7 @@ import com.coreos.monitoring.models.V1ServiceMonitorList;
 import com.google.gson.reflect.TypeToken;
 import io.kubernetes.client.common.KubernetesListObject;
 import io.kubernetes.client.common.KubernetesObject;
+import io.kubernetes.client.custom.V1Patch;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.JSON;
@@ -28,6 +29,7 @@ import io.kubernetes.client.openapi.apis.AppsV1Api;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.openapi.models.*;
+import io.kubernetes.client.util.PatchUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceDeployError;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
@@ -164,7 +166,7 @@ public class KubeOperator {
         }
     }
 
-    public void createOrUpdateResource(Object resource) throws ApiException {
+    public void createOrUpdateResource(Object resource) throws KubeApiException {
         if (resource instanceof V1ConfigMap cm) {
             createOrUpdateConfigMap(cm);
         } else if (resource instanceof V1Service service) {
@@ -182,21 +184,53 @@ public class KubeOperator {
         }
     }
 
-    private void createOrUpdateConfigMap(V1ConfigMap cm) throws ApiException {
-        V1ConfigMapList configMapList = coreApi.listNamespacedConfigMap(namespace).execute();
-        if (listContains(configMapList, cm)) {
-            coreApi.replaceNamespacedConfigMap(getName(cm).orElse(""), namespace, cm).execute();
-        } else {
-            coreApi.createNamespacedConfigMap(namespace, cm).execute();
+    private void createOrUpdateConfigMap(V1ConfigMap cm) throws KubeApiException {
+        try {
+            V1ConfigMapList configMapList = coreApi.listNamespacedConfigMap(namespace).execute();
+            if (listContains(configMapList, cm)) {
+                PatchUtils.patch(
+                        V1ConfigMap.class,
+                        () -> coreApi.patchNamespacedConfigMap(
+                                getName(cm).orElseThrow(() -> new KubeApiException("Failed to get config map name")),
+                                namespace,
+                                new V1Patch(JSON.serialize(cm))
+                        )
+                                .fieldManager("kubectl-patch")
+                                .force(true)
+                                .buildCall(null),
+                        V1Patch.PATCH_FORMAT_APPLY_YAML,
+                        coreApi.getApiClient()
+                );
+            } else {
+                coreApi.createNamespacedConfigMap(namespace, cm).execute();
+            }
+        } catch (ApiException e) {
+            throw new KubeApiException("Failed to create or update ConfigMap", e);
         }
     }
 
-    private void createOrUpdateService(V1Service service) throws ApiException {
-        V1ServiceList serviceList = coreApi.listNamespacedService(namespace).execute();
-        if (listContains(serviceList, service)) {
-            coreApi.replaceNamespacedService(getName(service).orElse(""), namespace, service).execute();
-        } else {
-            coreApi.createNamespacedService(namespace, service).execute();
+    private void createOrUpdateService(V1Service service) throws KubeApiException {
+        try {
+            V1ServiceList serviceList = coreApi.listNamespacedService(namespace).execute();
+            if (listContains(serviceList, service)) {
+                PatchUtils.patch(
+                        V1Service.class,
+                        () -> coreApi.patchNamespacedConfigMap(
+                                getName(service).orElseThrow(() -> new KubeApiException("Failed to get service name")),
+                                namespace,
+                                new V1Patch(JSON.serialize(service))
+                        )
+                                .fieldManager("kubectl-patch")
+                                .force(true)
+                                .buildCall(null),
+                        V1Patch.PATCH_FORMAT_APPLY_YAML,
+                        coreApi.getApiClient()
+                );
+            } else {
+                coreApi.createNamespacedService(namespace, service).execute();
+            }
+        } catch (ApiException e) {
+            throw new KubeApiException("Failed to create or update Service", e);
         }
     }
 
@@ -206,22 +240,39 @@ public class KubeOperator {
             String plural,
             T obj,
             Type listType
-    ) throws ApiException {
-        Object rawListObj = customObjectsApi.listNamespacedCustomObject(group, version, namespace, plural).execute();
-        KubernetesListObject listObject = fromRawObject(rawListObj, listType);
-        Optional<String> name = getName(obj);
-        Optional<V1ObjectMeta> existingItemMetadata = listObject.getItems()
-                .stream()
-                .filter(item -> getName(item).equals(name))
-                .map(KubernetesObject::getMetadata)
-                .findAny();
-        boolean alreadyExists = existingItemMetadata.isPresent();
-        if (alreadyExists) {
-            String resourceVersion = existingItemMetadata.map(V1ObjectMeta::getResourceVersion).orElse(null);
-            obj.getMetadata().setResourceVersion(resourceVersion);
-            customObjectsApi.replaceNamespacedCustomObject(group, version, namespace, plural, name.orElse(""), obj).execute();
-        } else {
-            customObjectsApi.createNamespacedCustomObject(group, version, namespace, plural, obj).execute();
+    ) throws KubeApiException {
+        try {
+            Object rawListObj = customObjectsApi.listNamespacedCustomObject(group, version, namespace, plural).execute();
+            KubernetesListObject listObject = fromRawObject(rawListObj, listType);
+            Optional<String> name = getName(obj);
+            Optional<V1ObjectMeta> existingItemMetadata = listObject.getItems()
+                    .stream()
+                    .filter(item -> getName(item).equals(name))
+                    .map(KubernetesObject::getMetadata)
+                    .findAny();
+            boolean alreadyExists = existingItemMetadata.isPresent();
+            if (alreadyExists) {
+                PatchUtils.patch(
+                        Object.class,
+                        () -> customObjectsApi.patchNamespacedCustomObject(
+                                group,
+                                version,
+                                namespace,
+                                plural,
+                                name.orElseThrow(() -> new KubeApiException("Failed to get custom object name")),
+                                new V1Patch(JSON.serialize(obj))
+                        )
+                                .fieldManager("kubectl-patch")
+                                .force(true)
+                                .buildCall(null),
+                        V1Patch.PATCH_FORMAT_APPLY_YAML,
+                        customObjectsApi.getApiClient()
+                );
+            } else {
+                customObjectsApi.createNamespacedCustomObject(group, version, namespace, plural, obj).execute();
+            }
+        } catch (ApiException e) {
+            throw new KubeApiException("Failed to create or update custom object", e);
         }
     }
 
