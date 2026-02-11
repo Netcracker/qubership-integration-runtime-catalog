@@ -44,16 +44,19 @@ public class CustomResourceService {
     ) {}
 
     private final KubeOperator kubeOperator;
-    @Qualifier("integrationsConfigurationResourceNamingStrategy")
+    private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationsConfigurationConfigMapNamingStrategy;
 
     @Autowired
     public CustomResourceService(
             KubeOperator kubeOperator,
+            @Qualifier("integrationResourceNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
             @Qualifier("integrationsConfigurationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Chain>>> integrationsConfigurationConfigMapNamingStrategy
     ) {
         this.kubeOperator = kubeOperator;
+        this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
         this.integrationsConfigurationConfigMapNamingStrategy = integrationsConfigurationConfigMapNamingStrategy;
     }
 
@@ -79,7 +82,6 @@ public class CustomResourceService {
     }
 
     public void delete(String name) {
-        // FIXME use integration resource name
         getIntegrationResources(name).ifPresent(resources -> {
             Optional.ofNullable(resources.integration)
                     .flatMap(KubeUtil::getName)
@@ -105,19 +107,20 @@ public class CustomResourceService {
     }
 
     public Optional<IntegrationResources> getIntegrationResources(String name) {
-        Optional<CamelKIntegration> integration = kubeOperator.getIntegration(name);
+        String integrationName = getIntegrationResourceName(name);
+        Optional<CamelKIntegration> integration = kubeOperator.getIntegration(integrationName);
         if (integration.isEmpty()) {
             return Optional.empty();
         }
         Optional<V1Service> service = kubeOperator
-                .getServicesByLabel(CAMEL_K_INTEGRATION_LABEL, name)
+                .getServicesByLabel(CAMEL_K_INTEGRATION_LABEL, integrationName)
                 .stream()
                 .findFirst();
         Optional<V1ServiceMonitor> serviceMonitor = kubeOperator
-                .getServiceMonitorsByLabel(CAMEL_K_INTEGRATION_LABEL, name)
+                .getServiceMonitorsByLabel(CAMEL_K_INTEGRATION_LABEL, integrationName)
                 .stream()
                 .findFirst();
-        List<V1ConfigMap> configMaps = kubeOperator.getConfigMapsByLabel(CAMEL_K_INTEGRATION_LABEL, name);
+        List<V1ConfigMap> configMaps = kubeOperator.getConfigMapsByLabel(CAMEL_K_INTEGRATION_LABEL, integrationName);
         String cfgName = getIntegrationCfgConfigMapName(name);
         Optional<V1ConfigMap> integrationsConfiguration = configMaps.stream()
                 .filter(cm -> cfgName.equals(getName(cm).orElse(null)))
@@ -139,10 +142,17 @@ public class CustomResourceService {
         ));
     }
 
-    private String getIntegrationCfgConfigMapName(String integrationName) {
-        ResourceBuildContext<List<Chain>> context = ResourceBuildContext.create(BuildInfo.builder()
-                .options(ResourceBuildOptions.builder().name(integrationName).build())
+    private String getIntegrationCfgConfigMapName(String name) {
+        return integrationsConfigurationConfigMapNamingStrategy.getName(getContextForDomain(name));
+    }
+
+    private String getIntegrationResourceName(String domainName) {
+        return integrationResourceNamingStrategy.getName(getContextForDomain(domainName));
+    }
+
+    private ResourceBuildContext<List<Chain>> getContextForDomain(String name) {
+        return ResourceBuildContext.create(BuildInfo.builder()
+                .options(ResourceBuildOptions.builder().name(name).build())
                 .build()).updateTo(Collections.emptyList());
-        return integrationsConfigurationConfigMapNamingStrategy.getName(context);
     }
 }

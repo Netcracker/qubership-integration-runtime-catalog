@@ -28,6 +28,7 @@ public class CustomResourceBuildContextFactory {
     private final NamingStrategy<BuildNamingContext> buildNamingStrategy;
     private final CustomResourceService customResourceService;
     private final IntegrationConfigurationReader integrationConfigurationReader;
+    private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
     private final ChainDslConfigMapNamingStrategy chainDslConfigMapNamingStrategy;
 
     @Autowired
@@ -36,12 +37,14 @@ public class CustomResourceBuildContextFactory {
             NamingStrategy<BuildNamingContext> buildNamingStrategy,
             CustomResourceService customResourceService,
             IntegrationConfigurationReader integrationConfigurationReader,
+            @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
             @Qualifier("chainDslConfigMapNamingStrategy") ChainDslConfigMapNamingStrategy chainDslConfigMapNamingStrategy
     ) {
         this.chainRepository = chainRepository;
         this.buildNamingStrategy = buildNamingStrategy;
         this.customResourceService = customResourceService;
         this.integrationConfigurationReader = integrationConfigurationReader;
+        this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
         this.chainDslConfigMapNamingStrategy = chainDslConfigMapNamingStrategy;
     }
 
@@ -89,7 +92,7 @@ public class CustomResourceBuildContextFactory {
 
     private void addAppendConfigurationToContext(ResourceBuildContext<List<Chain>> context) {
         customResourceService
-                .getIntegrationResources(context.getBuildInfo().getOptions().getName()) // FIXME integration resource name
+                .getIntegrationResources(integrationResourceNamingStrategy.getName(context))
                 .ifPresent(resources -> {
                     updateIntegrationResources(context, resources.integration());
                     putIntegrationsConfigurationToBuildCache(context, resources.integrationsConfiguration());
