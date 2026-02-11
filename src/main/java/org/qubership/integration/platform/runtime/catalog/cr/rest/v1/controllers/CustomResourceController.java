@@ -70,4 +70,12 @@ public class CustomResourceController {
         customResourceService.delete(name);
         return ResponseEntity.ok().build();
     }
+
+    @DeleteMapping("/{name}/{chainId}")
+    @Operation(description = "Delete integration chain from Camel-K resource")
+    public ResponseEntity<Void> deleteChainFromResource(@PathVariable String name, @PathVariable String chainId) {
+        log.debug("Request to delete chain {} from a Camel-K custom resource {}", chainId, name);
+        customResourceService.deleteChain(name, chainId);
+        return ResponseEntity.ok().build();
+    }
 }

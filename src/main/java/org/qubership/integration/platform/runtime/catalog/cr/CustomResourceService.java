@@ -2,7 +2,6 @@ package org.qubership.integration.platform.runtime.catalog.cr;
 
 import com.coreos.monitoring.models.V1ServiceMonitor;
 import com.coreos.monitoring.models.V1ServiceMonitorList;
-import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Service;
@@ -10,10 +9,15 @@ import io.kubernetes.client.util.ModelMapper;
 import io.kubernetes.client.util.Yaml;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.runtime.catalog.cr.builders.IntegrationsConfigurationConfigMapBuilder;
+import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
+import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfiguration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrationList;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
@@ -46,6 +50,7 @@ public class CustomResourceService {
     private final KubeOperator kubeOperator;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationsConfigurationConfigMapNamingStrategy;
+    private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
 
     @Autowired
     public CustomResourceService(
@@ -53,11 +58,13 @@ public class CustomResourceService {
             @Qualifier("integrationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
             @Qualifier("integrationsConfigurationResourceNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Chain>>> integrationsConfigurationConfigMapNamingStrategy
+            NamingStrategy<ResourceBuildContext<List<Chain>>> integrationsConfigurationConfigMapNamingStrategy,
+            IntegrationConfigurationSerdes integrationConfigurationSerdes
     ) {
         this.kubeOperator = kubeOperator;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
         this.integrationsConfigurationConfigMapNamingStrategy = integrationsConfigurationConfigMapNamingStrategy;
+        this.integrationConfigurationSerdes = integrationConfigurationSerdes;
     }
 
     @PostConstruct
@@ -100,6 +107,47 @@ public class CustomResourceService {
                                     .filter(Optional::isPresent)
                                     .map(Optional::get)
                                     .forEach(kubeOperator::deleteConfigMap));
+        });
+    }
+
+    public void deleteChain(String name, String chainId) {
+        getIntegrationResources(name).ifPresent(resources -> {
+            CamelKIntegration integration = resources.integration();
+            String cfgName = Optional.ofNullable(resources.integrationSources)
+                    .map(m -> m.get(chainId))
+                    .flatMap(KubeUtil::getName)
+                    .orElse("");
+            List<String> mounts = integration.getSpec()
+                    .getTraits()
+                    .getMount()
+                    .getResources()
+                    .stream()
+                    .filter(mount -> !mount.contains(cfgName))
+                    .collect(Collectors.toList());
+            integration.getSpec().getTraits().getMount().setResources(mounts);
+            integration.setApiVersion("camel.apache.org/v1");
+            integration.setKind("Integration");
+            kubeOperator.createOrUpdateResource(integration);
+            Optional.ofNullable(resources.integrationsConfiguration).ifPresent(configMap -> {
+                IntegrationsConfiguration integrationsConfiguration =
+                        integrationConfigurationSerdes.getFromConfigMap(configMap);
+                integrationsConfiguration.setChains(integrationsConfiguration.getChains().stream()
+                        .filter(source -> !chainId.equals(source.getId()))
+                        .collect(Collectors.toList()));
+                configMap.setData(Collections.singletonMap(
+                        IntegrationsConfigurationConfigMapBuilder.CONTENT_KEY,
+                        integrationConfigurationSerdes.toYaml(integrationsConfiguration)));
+                configMap.setApiVersion("v1");
+                configMap.setKind("ConfigMap");
+                try {
+                    kubeOperator.createOrUpdateResource(configMap);
+                } catch (KubeApiException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            if (StringUtils.isNotBlank(cfgName)) {
+                kubeOperator.deleteConfigMap(cfgName);
+            }
         });
     }
 

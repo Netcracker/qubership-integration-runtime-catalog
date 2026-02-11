@@ -1,7 +1,7 @@
 package org.qubership.integration.platform.runtime.catalog.cr;
 
 import io.kubernetes.client.openapi.models.V1ConfigMap;
-import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationReader;
+import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfiguration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
@@ -27,7 +27,7 @@ public class CustomResourceBuildContextFactory {
     private final ChainRepository chainRepository;
     private final NamingStrategy<BuildNamingContext> buildNamingStrategy;
     private final CustomResourceService customResourceService;
-    private final IntegrationConfigurationReader integrationConfigurationReader;
+    private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
     private final ChainDslConfigMapNamingStrategy chainDslConfigMapNamingStrategy;
 
@@ -36,14 +36,14 @@ public class CustomResourceBuildContextFactory {
             ChainRepository chainRepository,
             NamingStrategy<BuildNamingContext> buildNamingStrategy,
             CustomResourceService customResourceService,
-            IntegrationConfigurationReader integrationConfigurationReader,
+            IntegrationConfigurationSerdes integrationConfigurationSerdes,
             @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
             @Qualifier("chainDslConfigMapNamingStrategy") ChainDslConfigMapNamingStrategy chainDslConfigMapNamingStrategy
     ) {
         this.chainRepository = chainRepository;
         this.buildNamingStrategy = buildNamingStrategy;
         this.customResourceService = customResourceService;
-        this.integrationConfigurationReader = integrationConfigurationReader;
+        this.integrationConfigurationSerdes = integrationConfigurationSerdes;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
         this.chainDslConfigMapNamingStrategy = chainDslConfigMapNamingStrategy;
     }
@@ -108,7 +108,7 @@ public class CustomResourceBuildContextFactory {
         if (isNull(configMap)) {
             return;
         }
-        IntegrationsConfiguration cfg = integrationConfigurationReader.getFromConfigMap(configMap);
+        IntegrationsConfiguration cfg = integrationConfigurationSerdes.getFromConfigMap(configMap);
         String key = getName(configMap).orElse(null);
         context.getBuildCache().put(key, cfg);
     }

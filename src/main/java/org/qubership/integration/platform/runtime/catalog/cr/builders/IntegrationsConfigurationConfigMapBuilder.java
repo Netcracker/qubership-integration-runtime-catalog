@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuildError;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
+import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfiguration;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfigurationBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
@@ -28,24 +29,24 @@ public class IntegrationsConfigurationConfigMapBuilder implements ResourceBuilde
     public static final String CONTENT_KEY = "content";
 
     private final YAMLMapper resourceYamlMapper;
-    private final YAMLMapper integrationsConfigurationMapper;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> namingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
     private final IntegrationsConfigurationBuilder integrationsConfigurationBuilder;
+    private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
 
     @Autowired
     public IntegrationsConfigurationConfigMapBuilder(
             @Qualifier("customResourceYamlMapper") YAMLMapper resourceYamlMapper,
-            @Qualifier("integrationsConfigurationMapper") YAMLMapper integrationsConfigurationMapper,
             @Qualifier("integrationsConfigurationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> namingStrategy,
             @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
-            IntegrationsConfigurationBuilder integrationsConfigurationBuilder
+            IntegrationsConfigurationBuilder integrationsConfigurationBuilder,
+            IntegrationConfigurationSerdes integrationConfigurationSerdes
     ) {
         this.resourceYamlMapper = resourceYamlMapper;
-        this.integrationsConfigurationMapper = integrationsConfigurationMapper;
         this.namingStrategy = namingStrategy;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
         this.integrationsConfigurationBuilder = integrationsConfigurationBuilder;
+        this.integrationConfigurationSerdes = integrationConfigurationSerdes;
     }
 
     @Override
@@ -76,7 +77,7 @@ public class IntegrationsConfigurationConfigMapBuilder implements ResourceBuilde
                         .merge(integrationsConfiguration);
             }
 
-            String content = integrationsConfigurationMapper.writeValueAsString(integrationsConfiguration);
+            String content = integrationConfigurationSerdes.toYaml(integrationsConfiguration);
             configMapNode.withObjectProperty("data")
                     .set(CONTENT_KEY, configMapNode.textNode(content));
 

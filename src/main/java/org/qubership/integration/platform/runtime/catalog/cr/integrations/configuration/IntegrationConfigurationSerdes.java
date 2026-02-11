@@ -13,12 +13,12 @@ import java.util.Collections;
 import java.util.Optional;
 
 @Component
-public class IntegrationConfigurationReader {
+public class IntegrationConfigurationSerdes {
     private final YAMLMapper yamlMapper;
 
     @Autowired
-    public IntegrationConfigurationReader(
-            @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper
+    public IntegrationConfigurationSerdes(
+            @Qualifier("integrationsConfigurationMapper") YAMLMapper yamlMapper
     ) {
         this.yamlMapper = yamlMapper;
     }
@@ -37,6 +37,14 @@ public class IntegrationConfigurationReader {
             return yamlMapper.readValue(data, IntegrationsConfiguration.class);
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to parse integration configuration", e);
+        }
+    }
+
+    public String toYaml(IntegrationsConfiguration integrationsConfiguration) {
+        try {
+            return yamlMapper.writeValueAsString(integrationsConfiguration);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to write integration configuration", e);
         }
     }
 }
