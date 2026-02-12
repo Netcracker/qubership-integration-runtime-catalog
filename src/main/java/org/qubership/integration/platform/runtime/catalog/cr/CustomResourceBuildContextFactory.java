@@ -6,7 +6,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.integrations.config
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.BuildNamingContext;
-import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.ChainDslConfigMapNamingStrategy;
+import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.SourceDslConfigMapNamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
@@ -29,7 +29,7 @@ public class CustomResourceBuildContextFactory {
     private final CustomResourceService customResourceService;
     private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
-    private final ChainDslConfigMapNamingStrategy chainDslConfigMapNamingStrategy;
+    private final SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy;
 
     @Autowired
     public CustomResourceBuildContextFactory(
@@ -38,14 +38,14 @@ public class CustomResourceBuildContextFactory {
             CustomResourceService customResourceService,
             IntegrationConfigurationSerdes integrationConfigurationSerdes,
             @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
-            @Qualifier("chainDslConfigMapNamingStrategy") ChainDslConfigMapNamingStrategy chainDslConfigMapNamingStrategy
+            @Qualifier("sourceDslConfigMapNamingStrategy") SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy
     ) {
         this.chainRepository = chainRepository;
         this.buildNamingStrategy = buildNamingStrategy;
         this.customResourceService = customResourceService;
         this.integrationConfigurationSerdes = integrationConfigurationSerdes;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
-        this.chainDslConfigMapNamingStrategy = chainDslConfigMapNamingStrategy;
+        this.sourceDslConfigMapNamingStrategy = sourceDslConfigMapNamingStrategy;
     }
 
     public ResourceBuildContext<List<Chain>> createResourceBuildContext(
@@ -121,7 +121,7 @@ public class CustomResourceBuildContextFactory {
                 Optional.ofNullable(sourceConfigMaps.get(chain.getId()))
                         .flatMap(KubeUtil::getName)
                         .ifPresent(name ->
-                                chainDslConfigMapNamingStrategy.useName(context.updateTo(chain), name)));
+                                sourceDslConfigMapNamingStrategy.useName(context.updateTo(chain), name)));
     }
 
     private void updateIntegrationResources(

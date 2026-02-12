@@ -36,7 +36,7 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Chain> {
     public SourceConfigMapBuilder(
             @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper,
             IntegrationSourceBuilderFactory integrationSourceBuilderFactory,
-            @Qualifier("chainDslConfigMapNamingStrategy") NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy,
+            @Qualifier("sourceDslConfigMapNamingStrategy") NamingStrategy<ResourceBuildContext<Chain>> configMapNamingStrategy,
             @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy
     ) {
         this.yamlMapper = yamlMapper;

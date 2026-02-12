@@ -11,12 +11,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-@Component("chainDslConfigMapNamingStrategy")
-public class ChainDslConfigMapNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<Chain>> {
+@Component("sourceDslConfigMapNamingStrategy")
+public class SourceDslConfigMapNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<Chain>> {
     private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
 
     @Autowired
-    public ChainDslConfigMapNamingStrategy(
+    public SourceDslConfigMapNamingStrategy(
             @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy
     ) {
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
