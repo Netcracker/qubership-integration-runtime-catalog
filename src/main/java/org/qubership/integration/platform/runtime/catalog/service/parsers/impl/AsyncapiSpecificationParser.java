@@ -118,7 +118,7 @@ public class AsyncapiSpecificationParser implements SpecificationParser {
             systemModel = systemModelRepository.save(systemModel);
             systemModel.setName(systemModelName);
             systemModel.setVersion(parserUtils.defineVersion(group, importedAsyncApi));
-            systemModel.setDescription(importedAsyncApi.getInfo().getDescription());
+            systemModel.setDescription(importedAsyncApi.getInfo() != null ? importedAsyncApi.getInfo().getDescription() : null);
 
             setOperationIds(systemModelId, operations, messageHandler.andThen(log::warn));
 

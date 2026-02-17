@@ -52,10 +52,12 @@ public class ParserUtils {
 
     public String defineVersion(SpecificationGroup specificationGroup, Object specificationObject) {
         if (specificationObject instanceof AsyncapiSpecification asyncSpec) {
-            return defineVersion(specificationGroup, asyncSpec.getInfo().getVersion());
+            String version = asyncSpec.getInfo() != null ? asyncSpec.getInfo().getVersion() : null;
+            return defineVersion(specificationGroup, version);
         }
         if (specificationObject instanceof OpenAPI openapiSpec) {
-            return defineVersion(specificationGroup, openapiSpec.getInfo().getVersion());
+            String version = openapiSpec.getInfo() != null ? openapiSpec.getInfo().getVersion() : null;
+            return defineVersion(specificationGroup, version);
         }
         if (specificationObject instanceof String stringSpec) {
             return defineVersion(specificationGroup, stringSpec);

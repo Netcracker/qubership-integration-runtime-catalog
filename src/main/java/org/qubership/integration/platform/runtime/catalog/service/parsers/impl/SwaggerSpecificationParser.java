@@ -356,6 +356,16 @@ public class SwaggerSpecificationParser implements SpecificationParser {
                     }
                     break;
                 case INTERNAL:
+                    if (specificationGroup.getSystem().getEnvironments().isEmpty()) {
+                        String url = getUrlWithoutPlaceHolders(importedOpenAPI.getServers().get(0));
+                        Environment newEnv = Environment.builder()
+                                .name("Default Environment")
+                                .address(url)
+                                .labels(new ArrayList<>())
+                                .sourceType(EnvironmentSourceType.MANUAL)
+                                .build();
+                        environmentBaseService.create(newEnv, specificationGroup.getSystem());
+                    }
                     Environment environment = setDefaultProperties(specificationGroup);
                     if (StringUtils.isBlank(environment.getAddress())
                             && !CollectionUtils.isEmpty(importedOpenAPI.getServers())) {
@@ -364,7 +374,9 @@ public class SwaggerSpecificationParser implements SpecificationParser {
                     }
                     break;
                 case IMPLEMENTED:
-                    setDefaultProperties(specificationGroup);
+                    if (!specificationGroup.getSystem().getEnvironments().isEmpty()) {
+                        setDefaultProperties(specificationGroup);
+                    }
                     break;
             }
         }
