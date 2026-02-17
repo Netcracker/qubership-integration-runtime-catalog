@@ -17,14 +17,15 @@ import java.util.stream.Stream;
 @Builder
 public class IntegrationsConfiguration {
     @Builder.Default
-    List<SourceDefinition> chains = new ArrayList<>();
+    List<SourceDefinition> sources = new ArrayList<>();
 
     @Builder.Default
     List<LibraryDefinition> libraries = new ArrayList<>();
 
     public IntegrationsConfiguration merge(IntegrationsConfiguration other) {
         return IntegrationsConfiguration.builder()
-                .chains(mergeBy(SourceDefinition::getId, chains, other.chains))
+                // Merge by chain ID. SourceDefinition::getName returns chain ID. See SourceDefinitionBuilder.
+                .sources(mergeBy(SourceDefinition::getName, sources, other.sources))
                 .libraries(mergeBy(LibraryDefinition::getSpecificationId, libraries, other.libraries))
                 .build();
     }

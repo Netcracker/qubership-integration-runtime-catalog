@@ -215,7 +215,7 @@ public class KubeOperator {
             if (listContains(serviceList, service)) {
                 PatchUtils.patch(
                         V1Service.class,
-                        () -> coreApi.patchNamespacedConfigMap(
+                        () -> coreApi.patchNamespacedService(
                                 getName(service).orElseThrow(() -> new KubeApiException("Failed to get service name")),
                                 namespace,
                                 new V1Patch(JSON.serialize(service))

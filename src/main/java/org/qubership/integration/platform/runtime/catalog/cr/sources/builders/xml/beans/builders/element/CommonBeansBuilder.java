@@ -37,16 +37,14 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
             SourceBuilderContext context
     ) throws Exception {
         streamWriter.writeStartElement("bean");
-        streamWriter.writeAttribute("name", "ElementInfo-" + element.getId());
+        streamWriter.writeAttribute("name", "ElementInfo-" + element.getOriginalId());
         streamWriter.writeAttribute("type", "org.qubership.integration.platform.engine.metadata.ElementInfo");
-        streamWriter.writeAttribute("builderClass", "org.qubership.integration.platform.engine.metadata.builders.ElementInfoBuilder");
-        streamWriter.writeAttribute("builderMethod", "build");
 
         streamWriter.writeStartElement("properties");
 
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "id");
-        streamWriter.writeAttribute("value", element.getId());
+        streamWriter.writeAttribute("value", element.getOriginalId());
 
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "name");
@@ -58,7 +56,11 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
 
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "chainId");
-        streamWriter.writeAttribute("value", element.getChain().getId());
+        streamWriter.writeAttribute("value", element.getSnapshot().getChain().getId());
+
+        streamWriter.writeEmptyElement("property");
+        streamWriter.writeAttribute("key", "snapshotId");
+        streamWriter.writeAttribute("value", element.getSnapshot().getId());
 
         if (nonNull(element.getParent())) {
             ChainElement parent = element.getParent();
@@ -68,7 +70,7 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
                     .orElse(false)) {
                 streamWriter.writeEmptyElement("property");
                 streamWriter.writeAttribute("key", "parentId");
-                streamWriter.writeAttribute("value", element.getParent().getId());
+                streamWriter.writeAttribute("value", element.getParent().getOriginalId());
 
                 streamWriter.writeEmptyElement("property");
                 streamWriter.writeAttribute("key", "hasIntermediateParents");
@@ -81,7 +83,7 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
             if (BuilderConstants.REUSE_ELEMENT_TYPE.equals(element.getParent().getType())) {
                 streamWriter.writeEmptyElement("property");
                 streamWriter.writeAttribute("key", "reuseId");
-                streamWriter.writeAttribute("value", element.getParent().getId());
+                streamWriter.writeAttribute("value", element.getParent().getOriginalId());
             }
         }
 

@@ -1,6 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.cr.sources;
 
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -38,8 +38,8 @@ public class IntegrationSourceBuilderFactory {
             }
 
             @Override
-            public String build(Chain chain, SourceBuilderContext context) throws Exception {
-                return placeholdersSubstitutionService.substitute(builder.build(chain, context));
+            public String build(Snapshot snapshot, SourceBuilderContext context) throws Exception {
+                return placeholdersSubstitutionService.substitute(builder.build(snapshot, context));
             }
         };
     }

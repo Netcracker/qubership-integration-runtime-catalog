@@ -25,7 +25,7 @@ public class WireTapInfoBeanBuilder implements ElementBeansBuilder {
             SourceBuilderContext context
     ) throws Exception {
         streamWriter.writeStartElement("bean");
-        streamWriter.writeAttribute("name", "WireTapInfo-" + element.getId());
+        streamWriter.writeAttribute("name", "WireTapInfo-" + element.getOriginalId());
         streamWriter.writeAttribute("type", "org.qubership.integration.platform.engine.metadata.WireTapInfo");
 
         streamWriter.writeStartElement("constructors");
@@ -40,7 +40,7 @@ public class WireTapInfoBeanBuilder implements ElementBeansBuilder {
 
     public String getWireTapId(ChainElement element) {
         return element.getInputDependencies().stream()
-                .map(dependency -> dependency.getElementFrom().getId())
+                .map(dependency -> dependency.getElementFrom().getOriginalId())
                 .collect(Collectors.joining(","));
     }
 

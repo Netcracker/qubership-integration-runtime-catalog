@@ -10,8 +10,8 @@ import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.S
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -20,27 +20,32 @@ import java.time.Instant;
 import java.util.*;
 
 import static java.util.Objects.isNull;
+import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder.CHAIN_ID_LABEL;
+import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder.SNAPSHOT_ID_LABEL;
 import static org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil.getName;
 
 @Component
 public class CustomResourceBuildContextFactory {
-    private final ChainRepository chainRepository;
+    private final SnapshotRepository snapshotRepository;
     private final NamingStrategy<BuildNamingContext> buildNamingStrategy;
     private final CustomResourceService customResourceService;
     private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
-    private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
     private final SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy;
 
     @Autowired
     public CustomResourceBuildContextFactory(
-            ChainRepository chainRepository,
+            SnapshotRepository snapshotRepository,
             NamingStrategy<BuildNamingContext> buildNamingStrategy,
             CustomResourceService customResourceService,
             IntegrationConfigurationSerdes integrationConfigurationSerdes,
-            @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
-            @Qualifier("sourceDslConfigMapNamingStrategy") SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy
+            @Qualifier("integrationResourceNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
+
+            @Qualifier("sourceDslConfigMapNamingStrategy")
+            SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy
     ) {
-        this.chainRepository = chainRepository;
+        this.snapshotRepository = snapshotRepository;
         this.buildNamingStrategy = buildNamingStrategy;
         this.customResourceService = customResourceService;
         this.integrationConfigurationSerdes = integrationConfigurationSerdes;
@@ -48,11 +53,11 @@ public class CustomResourceBuildContextFactory {
         this.sourceDslConfigMapNamingStrategy = sourceDslConfigMapNamingStrategy;
     }
 
-    public ResourceBuildContext<List<Chain>> createResourceBuildContext(
+    public ResourceBuildContext<List<Snapshot>> createResourceBuildContext(
             ResourceBuildRequest request,
             boolean appendToExising
     ) {
-        List<Chain> chains = chainRepository.findAllByIdIn(request.getChainIds());
+        List<Snapshot> snapshots = snapshotRepository.findAllByIdIn(request.getSnapshotIds());
 
         ResourceBuildOptions options = appendToExising
                 ? request.getOptions().toBuilder()
@@ -65,8 +70,8 @@ public class CustomResourceBuildContextFactory {
                         .build()
                 : request.getOptions().toBuilder().build();
         BuildInfo buildInfo = createBuildInfo(options);
-        ResourceBuildContext<List<Chain>> context = ResourceBuildContext.create(buildInfo)
-                .updateTo(chains);
+        ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(buildInfo)
+                .updateTo(snapshots);
 
         if (appendToExising) {
             addAppendConfigurationToContext(context);
@@ -90,19 +95,18 @@ public class CustomResourceBuildContextFactory {
                 .build();
     }
 
-    private void addAppendConfigurationToContext(ResourceBuildContext<List<Chain>> context) {
+    private void addAppendConfigurationToContext(ResourceBuildContext<List<Snapshot>> context) {
         customResourceService
                 .getIntegrationResources(integrationResourceNamingStrategy.getName(context))
                 .ifPresent(resources -> {
                     updateIntegrationResources(context, resources.integration());
                     putIntegrationsConfigurationToBuildCache(context, resources.integrationsConfiguration());
-                    putSourceConfigMapNamesToBuildCache(context, Optional.ofNullable(resources.integrationSources())
-                            .orElse(Collections.emptyMap()));
+                    putSourceConfigMapNamesToBuildCache(context, resources);
                 });
     }
 
     private void putIntegrationsConfigurationToBuildCache(
-            ResourceBuildContext<List<Chain>> context,
+            ResourceBuildContext<List<Snapshot>> context,
             V1ConfigMap configMap
     ) {
         if (isNull(configMap)) {
@@ -114,18 +118,25 @@ public class CustomResourceBuildContextFactory {
     }
 
     private void putSourceConfigMapNamesToBuildCache(
-            ResourceBuildContext<List<Chain>> context,
-            Map<String, V1ConfigMap> sourceConfigMaps
+            ResourceBuildContext<List<Snapshot>> context,
+            CustomResourceService.IntegrationResources resources
     ) {
-        context.getData().forEach(chain ->
-                Optional.ofNullable(sourceConfigMaps.get(chain.getId()))
-                        .flatMap(KubeUtil::getName)
-                        .ifPresent(name ->
-                                sourceDslConfigMapNamingStrategy.useName(context.updateTo(chain), name)));
+        Map<String, V1ConfigMap> sourceBySnapshotId = resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL);
+        Map<String, V1ConfigMap> sourceByChainId = resources.getSourceByLabelMap(CHAIN_ID_LABEL);
+        context.getData().forEach(snapshot -> {
+            Optional.ofNullable(sourceBySnapshotId.get(snapshot.getId()))
+                    .flatMap(KubeUtil::getName)
+                    .ifPresent(name ->
+                            sourceDslConfigMapNamingStrategy.useName(context.updateTo(snapshot), name));
+            Optional.ofNullable(sourceByChainId.get(snapshot.getChain().getId()))
+                    .flatMap(KubeUtil::getName)
+                    .ifPresent(name ->
+                            sourceDslConfigMapNamingStrategy.useName(context.updateTo(snapshot), name));
+        });
     }
 
     private void updateIntegrationResources(
-            ResourceBuildContext<List<Chain>> context,
+            ResourceBuildContext<List<Snapshot>> context,
             CamelKIntegration integration
     ) {
         ResourceBuildOptions options = context.getBuildInfo().getOptions();

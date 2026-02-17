@@ -2,12 +2,12 @@ package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.x
 
 import org.codehaus.stax2.XMLStreamWriter2;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 
-public interface ChainBeanBuilder {
+public interface SnapshotBeanBuilder {
     void build(
             XMLStreamWriter2 streamWriter,
-            Chain chain,
+            Snapshot snapshot,
             SourceBuilderContext context
     ) throws Exception;
 }

@@ -20,19 +20,16 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.Resourc
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder.CHAIN_ID_LABEL;
+import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder.SNAPSHOT_ID_LABEL;
 import static org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKConstants.CAMEL_K_INTEGRATION_LABEL;
 import static org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil.getName;
 
@@ -44,21 +41,31 @@ public class CustomResourceService {
             V1ServiceMonitor serviceMonitor,
             V1Service service,
             V1ConfigMap integrationsConfiguration,
-            Map<String, V1ConfigMap> integrationSources
-    ) {}
+            Collection<V1ConfigMap> integrationSources
+    ) {
+        public Map<String, V1ConfigMap> getSourceByLabelMap(String label) {
+            return integrationSources.stream().collect(Collectors.toMap(
+                    cm -> Optional.ofNullable(cm.getMetadata())
+                            .map(V1ObjectMeta::getLabels)
+                            .map(labels -> labels.get(label))
+                            .orElse(""),
+                    Function.identity(),
+                    (a, b) -> a));
+        }
+    }
 
     private final KubeOperator kubeOperator;
-    private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
-    private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationsConfigurationConfigMapNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationsConfigurationConfigMapNamingStrategy;
     private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
 
     @Autowired
     public CustomResourceService(
             KubeOperator kubeOperator,
             @Qualifier("integrationResourceNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
             @Qualifier("integrationsConfigurationResourceNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Chain>>> integrationsConfigurationConfigMapNamingStrategy,
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationsConfigurationConfigMapNamingStrategy,
             IntegrationConfigurationSerdes integrationConfigurationSerdes
     ) {
         this.kubeOperator = kubeOperator;
@@ -100,7 +107,6 @@ public class CustomResourceService {
                     .flatMap(KubeUtil::getName)
                     .ifPresent(kubeOperator::deleteConfigMap);
             Optional.ofNullable(resources.integrationSources)
-                    .map(Map::values)
                     .ifPresent(configMaps ->
                             configMaps.stream()
                                     .map(KubeUtil::getName)
@@ -110,11 +116,11 @@ public class CustomResourceService {
         });
     }
 
-    public void deleteChain(String name, String chainId) {
+    public void deleteChainSnapshot(String name, String snapshotId) {
         getIntegrationResources(name).ifPresent(resources -> {
             CamelKIntegration integration = resources.integration();
-            String cfgName = Optional.ofNullable(resources.integrationSources)
-                    .map(m -> m.get(chainId))
+            String cfgName = Optional.ofNullable(resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL))
+                    .map(m -> m.get(snapshotId))
                     .flatMap(KubeUtil::getName)
                     .orElse("");
             List<String> mounts = integration.getSpec()
@@ -131,8 +137,8 @@ public class CustomResourceService {
             Optional.ofNullable(resources.integrationsConfiguration).ifPresent(configMap -> {
                 IntegrationsConfiguration integrationsConfiguration =
                         integrationConfigurationSerdes.getFromConfigMap(configMap);
-                integrationsConfiguration.setChains(integrationsConfiguration.getChains().stream()
-                        .filter(source -> !chainId.equals(source.getId()))
+                integrationsConfiguration.setSources(integrationsConfiguration.getSources().stream()
+                        .filter(source -> !snapshotId.equals(source.getId()))
                         .collect(Collectors.toList()));
                 configMap.setData(Collections.singletonMap(
                         IntegrationsConfigurationConfigMapBuilder.CONTENT_KEY,
@@ -170,14 +176,9 @@ public class CustomResourceService {
         Optional<V1ConfigMap> integrationsConfiguration = configMaps.stream()
                 .filter(cm -> cfgName.equals(getName(cm).orElse(null)))
                 .findFirst();
-        Map<String, V1ConfigMap> integrationSources = configMaps.stream().collect(Collectors.toMap(
-                cm -> Optional.ofNullable(cm.getMetadata())
-                        .map(V1ObjectMeta::getLabels)
-                        .map(labels -> labels.get(CHAIN_ID_LABEL))
-                        .orElse(""),
-                Function.identity(),
-                (a, b) -> a
-        ));
+        List<V1ConfigMap> integrationSources = configMaps.stream()
+                .filter(cm -> !cfgName.equals(getName(cm).orElse(null)))
+                .toList();
         return Optional.of(new IntegrationResources(
                 integration.orElse(null),
                 serviceMonitor.orElse(null),
@@ -195,7 +196,7 @@ public class CustomResourceService {
         return integrationResourceNamingStrategy.getName(getContextForDomain(domainName));
     }
 
-    private ResourceBuildContext<List<Chain>> getContextForDomain(String name) {
+    private ResourceBuildContext<List<Snapshot>> getContextForDomain(String name) {
         return ResourceBuildContext.create(BuildInfo.builder()
                 .options(ResourceBuildOptions.builder().name(name).build())
                 .build()).updateTo(Collections.emptyList());

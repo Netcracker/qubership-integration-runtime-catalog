@@ -18,9 +18,9 @@ public class ResourceDeployRequest {
     @NotBlank(message = "Resource name is required")
     String name;
 
-    @NotEmpty(message = "At least one integration chain ID should be specified")
+    @NotEmpty(message = "At least one snapshot ID should be specified")
     @Builder.Default
-    private List<String> chainIds = Collections.emptyList();
+    private List<String> snapshotIds = Collections.emptyList();
 
     @Builder.Default
     DeployMode mode = DeployMode.REWRITE;

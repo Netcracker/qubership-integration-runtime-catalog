@@ -14,5 +14,5 @@ public class ResourceBuildRequest {
     private ResourceBuildOptions options;
 
     @Builder.Default
-    private List<String> chainIds = Collections.emptyList();
+    private List<String> snapshotIds = Collections.emptyList();
 }

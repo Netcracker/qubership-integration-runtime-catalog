@@ -9,6 +9,7 @@ import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNa
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -58,17 +59,19 @@ public class AmpqBeansBinder implements ElementBeansBuilder {
 
         streamWriter.writeStartElement("properties");
 
+        Chain chain = element.getSnapshot().getChain();
+
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "chainId");
-        streamWriter.writeAttribute("value", element.getChain().getId());
+        streamWriter.writeAttribute("value", chain.getId());
 
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "chainName");
-        streamWriter.writeAttribute("value", element.getChain().getName());
+        streamWriter.writeAttribute("value", chain.getName());
 
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "elementId");
-        streamWriter.writeAttribute("value", element.getId());
+        streamWriter.writeAttribute("value", element.getOriginalId());
 
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "elementName");

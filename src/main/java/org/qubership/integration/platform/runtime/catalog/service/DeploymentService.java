@@ -46,6 +46,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentSnapshotAction;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.event.GenericMessageType;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.DeploymentBuilderService;
@@ -217,8 +218,48 @@ public class DeploymentService {
         return savedDeployment.get();
     }
 
-    @Transactional
+    public Map<String, Snapshot> provideSnapshots(
+            Collection<String> chainIds,
+            BulkDeploymentSnapshotAction action,
+            BiConsumer<String, String> errorHandler
+    ) {
+        return switch (action) {
+            case CREATE_NEW -> snapshotService.buildAll(chainIds, errorHandler);
+            case LAST_CREATED -> snapshotService.findLastCreatedOrBuild(chainIds, errorHandler);
+        };
+    }
+
     @DeploymentModification
+    public BulkDeploymentResponse deploySnapshot(Snapshot snapshot, Collection<String> domains) {
+        List<Deployment> deps = domains.stream().map(domain -> {
+            Deployment dep = new Deployment();
+            dep.setDomain(domain);
+            return dep;
+        }).toList();
+
+        Chain chain = snapshot.getChain();
+        String chainId = chain.getId();
+        String chainName = chain.getName();
+
+        try {
+            createAll(deps, chainId, snapshot);
+            return BulkDeploymentResponse.builder()
+                    .chainId(chainId)
+                    .chainName(chainName)
+                    .status(BulkDeploymentStatus.CREATED)
+                    .build();
+        } catch (Exception e) {
+            log.error("Error creating deployment for chain: {}, {}", snapshot.getChain().getId(), e.getMessage());
+            return BulkDeploymentResponse.builder()
+                    .chainId(chainId)
+                    .chainName(chainName)
+                    .status(BulkDeploymentStatus.FAILED_DEPLOY)
+                    .errorMessage(e.getMessage())
+                    .build();
+        }
+    }
+
+    @Transactional
     public Pair<Boolean, List<BulkDeploymentResponse>> bulkCreate(BulkDeploymentRequest request) {
         final AtomicReference<Boolean> failed = new AtomicReference<>(false);
         List<BulkDeploymentResponse> statuses = new ArrayList<>();
@@ -251,37 +292,13 @@ public class DeploymentService {
             failed.set(true);
         };
 
-        Map<String, Snapshot> snapshots = switch (request.getSnapshotAction()) {
-            case CREATE_NEW -> snapshotService.buildAll(chains.keySet(), errorHandler);
-            case LAST_CREATED -> snapshotService.findLastCreatedOrBuild(chains.keySet(), errorHandler);
-        };
-
-        for (Map.Entry<String, Snapshot> entry : snapshots.entrySet()) {
-            List<Deployment> deps = request.getDomains().stream().map(domain -> {
-                Deployment dep = new Deployment();
-                dep.setDomain(domain);
-                return dep;
-            }).toList();
-
-            try {
-                createAll(deps, entry.getKey(), entry.getValue());
-                statuses.add(BulkDeploymentResponse.builder()
-                        .chainId(entry.getKey())
-                        .chainName(chains.get(entry.getKey()).getName())
-                        .status(BulkDeploymentStatus.CREATED)
-                        .build());
-            } catch (Exception e) {
-                log.error("Error creating deployment for chain: {}, {}", entry.getKey(), e.getMessage());
-                statuses.add(BulkDeploymentResponse.builder()
-                        .chainId(entry.getKey())
-                        .chainName(chains.get(entry.getKey()).getName())
-                        .status(BulkDeploymentStatus.FAILED_DEPLOY)
-                        .errorMessage(e.getMessage())
-                        .build());
-                failed.set(true);
-            }
-        }
-
+        provideSnapshots(chains.keySet(), request.getSnapshotAction(), errorHandler)
+                .values()
+                .stream()
+                .map(snapshot -> deploySnapshot(snapshot, request.getDomains()))
+                .peek(result -> failed.compareAndSet(
+                        false, BulkDeploymentStatus.FAILED_DEPLOY.equals(result.getStatus())))
+                .forEach(statuses::add);
         return Pair.of(failed.get(), statuses);
     }
 

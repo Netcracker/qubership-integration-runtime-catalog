@@ -2,7 +2,7 @@ package org.qubership.integration.platform.runtime.catalog.cr;
 
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -11,14 +11,14 @@ import java.util.List;
 @Slf4j
 @Service
 public class CustomResourceBuildService {
-    private final List<ResourceBuilder<Chain>> chainResourceBuilders;
-    private final List<ResourceBuilder<List<Chain>>> commonResourceBuilders;
+    private final List<ResourceBuilder<Snapshot>> chainResourceBuilders;
+    private final List<ResourceBuilder<List<Snapshot>>> commonResourceBuilders;
     private final CustomResourceBuildContextFactory buildContextFactory;
 
     @Autowired
     public CustomResourceBuildService(
-            List<ResourceBuilder<Chain>> chainResourceBuilders,
-            List<ResourceBuilder<List<Chain>>> commonResourceBuilders,
+            List<ResourceBuilder<Snapshot>> chainResourceBuilders,
+            List<ResourceBuilder<List<Snapshot>>> commonResourceBuilders,
             CustomResourceBuildContextFactory buildContextFactory
     ) {
         this.chainResourceBuilders = chainResourceBuilders;
@@ -31,18 +31,18 @@ public class CustomResourceBuildService {
     }
 
     public String buildResources(ResourceBuildRequest request, boolean appendToExisting) {
-        ResourceBuildContext<List<Chain>> buildContext =
+        ResourceBuildContext<List<Snapshot>> buildContext =
                 buildContextFactory.createResourceBuildContext(request, appendToExisting);
         return buildResources(buildContext);
     }
 
     public String buildResources(
-            ResourceBuildContext<List<Chain>> buildContext
+            ResourceBuildContext<List<Snapshot>> buildContext
     ) {
         StringBuilder stringBuilder = new StringBuilder();
         try {
-            for (Chain chain : buildContext.getData()) {
-                applyBuilders(stringBuilder, buildContext.updateTo(chain), chainResourceBuilders);
+            for (Snapshot snapshot : buildContext.getData()) {
+                applyBuilders(stringBuilder, buildContext.updateTo(snapshot), chainResourceBuilders);
             }
             applyBuilders(stringBuilder, buildContext, commonResourceBuilders);
             return stringBuilder.toString();

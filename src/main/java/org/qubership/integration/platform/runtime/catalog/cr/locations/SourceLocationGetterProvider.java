@@ -1,7 +1,7 @@
 package org.qubership.integration.platform.runtime.catalog.cr.locations;
 
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -16,7 +16,7 @@ public class SourceLocationGetterProvider {
         this.sourceMountPointGetter = sourceMountPointGetter;
     }
 
-    public Function<ResourceBuildContext<Chain>, String> get(ResourceBuildContext<?> context) {
+    public Function<ResourceBuildContext<Snapshot>, String> get(ResourceBuildContext<?> context) {
         // TODO add another source location support (f.e. from artifactory)
         return ctx -> "file:" + sourceMountPointGetter.apply(ctx);
     }

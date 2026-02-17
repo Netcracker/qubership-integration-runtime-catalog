@@ -35,7 +35,7 @@ public class JmsBeansBuilder implements ElementBeansBuilder {
 
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "elementId");
-        streamWriter.writeAttribute("value", element.getId());
+        streamWriter.writeAttribute("value", element.getOriginalId());
 
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "initialContextFactory");

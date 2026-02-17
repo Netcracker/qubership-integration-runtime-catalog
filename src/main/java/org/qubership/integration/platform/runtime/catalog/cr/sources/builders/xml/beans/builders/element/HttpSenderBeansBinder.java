@@ -3,6 +3,7 @@ package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.x
 import org.codehaus.stax2.XMLStreamWriter2;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.ElementBeansBuilder;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.springframework.stereotype.Component;
 
@@ -36,17 +37,19 @@ public class HttpSenderBeansBinder implements ElementBeansBuilder {
 
         streamWriter.writeStartElement("properties");
 
+        Chain chain = element.getSnapshot().getChain();
+
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "chainId");
-        streamWriter.writeAttribute("value", element.getChain().getId());
+        streamWriter.writeAttribute("value", chain.getId());
 
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "chainName");
-        streamWriter.writeAttribute("value", element.getChain().getName());
+        streamWriter.writeAttribute("value", chain.getName());
 
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "elementId");
-        streamWriter.writeAttribute("value", element.getId());
+        streamWriter.writeAttribute("value", element.getOriginalId());
 
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "elementName");

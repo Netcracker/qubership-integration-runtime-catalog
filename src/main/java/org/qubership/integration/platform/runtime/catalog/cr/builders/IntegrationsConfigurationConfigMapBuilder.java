@@ -10,7 +10,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.integrations.config
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfiguration;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfigurationBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.Ordered;
@@ -25,20 +25,26 @@ import static org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKCo
 @Slf4j
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Component
-public class IntegrationsConfigurationConfigMapBuilder implements ResourceBuilder<List<Chain>> {
+public class IntegrationsConfigurationConfigMapBuilder implements ResourceBuilder<List<Snapshot>> {
     public static final String CONTENT_KEY = "content";
 
     private final YAMLMapper resourceYamlMapper;
-    private final NamingStrategy<ResourceBuildContext<List<Chain>>> namingStrategy;
-    private final NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> namingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
     private final IntegrationsConfigurationBuilder integrationsConfigurationBuilder;
     private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
 
     @Autowired
     public IntegrationsConfigurationConfigMapBuilder(
-            @Qualifier("customResourceYamlMapper") YAMLMapper resourceYamlMapper,
-            @Qualifier("integrationsConfigurationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> namingStrategy,
-            @Qualifier("integrationResourceNamingStrategy") NamingStrategy<ResourceBuildContext<List<Chain>>> integrationResourceNamingStrategy,
+            @Qualifier("customResourceYamlMapper")
+            YAMLMapper resourceYamlMapper,
+
+            @Qualifier("integrationsConfigurationResourceNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> namingStrategy,
+
+            @Qualifier("integrationResourceNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
+
             IntegrationsConfigurationBuilder integrationsConfigurationBuilder,
             IntegrationConfigurationSerdes integrationConfigurationSerdes
     ) {
@@ -50,12 +56,12 @@ public class IntegrationsConfigurationConfigMapBuilder implements ResourceBuilde
     }
 
     @Override
-    public boolean enabled(ResourceBuildContext<List<Chain>> context) {
+    public boolean enabled(ResourceBuildContext<List<Snapshot>> context) {
         return context.getBuildInfo().getOptions().getIntegrations().isConfigurationConfigMapNeeded();
     }
 
     @Override
-    public String build(ResourceBuildContext<List<Chain>> context) throws Exception {
+    public String build(ResourceBuildContext<List<Snapshot>> context) throws Exception {
         try {
             ObjectNode configMapNode = resourceYamlMapper.createObjectNode();
             configMapNode.set("apiVersion", configMapNode.textNode("v1"));

@@ -2,9 +2,9 @@ package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.x
 
 import org.codehaus.stax2.XMLStreamWriter2;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
-import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.ChainBeanBuilder;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.SnapshotBeanBuilder;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.DeploymentRoute;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.service.RoutesGetterService;
 import org.springframework.stereotype.Component;
 
@@ -12,7 +12,7 @@ import java.util.Collection;
 import javax.xml.stream.XMLStreamException;
 
 @Component
-public class RouteInfoBeansBuilder implements ChainBeanBuilder {
+public class RouteInfoBeansBuilder implements SnapshotBeanBuilder {
     private final RoutesGetterService routesGetterService;
 
     public RouteInfoBeansBuilder(RoutesGetterService routesGetterService) {
@@ -20,17 +20,17 @@ public class RouteInfoBeansBuilder implements ChainBeanBuilder {
     }
 
     @Override
-    public void build(XMLStreamWriter2 streamWriter, Chain chain, SourceBuilderContext context) throws Exception {
+    public void build(XMLStreamWriter2 streamWriter, Snapshot snapshot, SourceBuilderContext context) throws Exception {
         Collection<DeploymentRoute> routes = routesGetterService.getRoutes((root, query, criteriaBuilder) ->
-                criteriaBuilder.equal(root.get("chain").get("id"), chain.getId()));
+                criteriaBuilder.equal(root.get("snapshot").get("id"), snapshot.getId()));
         for (DeploymentRoute route : routes) {
-            addRouteRegistrationInfoBean(streamWriter, chain, route);
+            addRouteRegistrationInfoBean(streamWriter, snapshot, route);
         }
     }
 
     private void addRouteRegistrationInfoBean(
             XMLStreamWriter2 streamWriter,
-            Chain chain,
+            Snapshot snapshot,
             DeploymentRoute route
     ) throws XMLStreamException {
         streamWriter.writeStartElement("bean");
@@ -43,8 +43,8 @@ public class RouteInfoBeansBuilder implements ChainBeanBuilder {
         streamWriter.writeStartElement("properties");
 
         streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "chainId");
-        streamWriter.writeAttribute("value", chain.getId());
+        streamWriter.writeAttribute("key", "snapshotId");
+        streamWriter.writeAttribute("value", snapshot.getId());
 
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "path");
