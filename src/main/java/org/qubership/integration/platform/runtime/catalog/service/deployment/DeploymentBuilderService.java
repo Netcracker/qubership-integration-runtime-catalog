@@ -174,12 +174,16 @@ public class DeploymentBuilderService {
                         if (IntegrationSystemType.EXTERNAL.name().equals(element.getProperty(CamelOptions.SYSTEM_TYPE))) {
                             String systemId = (String) element.getProperty(CamelOptions.SYSTEM_ID);
                             if (StringUtils.isNotEmpty(systemId)) {
-                                IntegrationSystem system = systemService.findById(systemId);
-                                properties.put(EXTERNAL_SERVICE_NAME, system.getName());
-                                String activeEnvironmentId = system.getActiveEnvironmentId();
-                                if (StringUtils.isNotEmpty(activeEnvironmentId)) {
-                                    Environment env = environmentService.getByIdForSystem(systemId, activeEnvironmentId);
-                                    properties.put(EXTERNAL_SERVICE_ENV_NAME, env.getName());
+                                IntegrationSystem system = systemService.findByIdOrNull(systemId);
+                                if (system != null) {
+                                    properties.put(EXTERNAL_SERVICE_NAME, system.getName());
+                                    String activeEnvironmentId = system.getActiveEnvironmentId();
+                                    if (StringUtils.isNotEmpty(activeEnvironmentId)) {
+                                        Environment env = environmentService.getByIdForSystemOrElseNull(systemId, activeEnvironmentId);
+                                        if (env != null) {
+                                            properties.put(EXTERNAL_SERVICE_ENV_NAME, env.getName());
+                                        }
+                                    }
                                 }
                             }
                         }
