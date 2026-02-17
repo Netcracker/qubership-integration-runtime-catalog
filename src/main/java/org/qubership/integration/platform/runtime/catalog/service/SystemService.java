@@ -120,4 +120,9 @@ public class SystemService extends SystemBaseService {
         return systemRepository.findById(systemId)
                 .orElseThrow(() -> new EntityNotFoundException(SYSTEM_WITH_ID_NOT_FOUND_MESSAGE + systemId));
     }
+
+    @Transactional
+    public IntegrationSystem findByIdOrNull(String systemId) {
+        return systemRepository.findById(systemId).orElse(null);
+    }
 }
