@@ -164,6 +164,11 @@ public class SystemService extends SystemBaseService {
                 .orElseThrow(() -> new EntityNotFoundException(SYSTEM_WITH_ID_NOT_FOUND_MESSAGE + systemId));
     }
 
+    @Transactional
+    public IntegrationSystem findByIdOrNull(String systemId) {
+        return systemRepository.findById(systemId).orElse(null);
+    }
+
     @Async
     public void updateSystemModelCompiledLibraryAsync(IntegrationSystem system) {
         systemModelService.updateCompiledLibrariesForSystem(system.getId());
