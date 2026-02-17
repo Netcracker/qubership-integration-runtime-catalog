@@ -24,8 +24,8 @@ public class IntegrationsConfiguration {
 
     public IntegrationsConfiguration merge(IntegrationsConfiguration other) {
         return IntegrationsConfiguration.builder()
-                // Merge by chain ID. SourceDefinition::getName returns chain ID. See SourceDefinitionBuilder.
-                .sources(mergeBy(SourceDefinition::getName, sources, other.sources))
+                // Merging sources by chain ID.
+                .sources(mergeBy(SourceDefinition::getChainId, sources, other.sources))
                 .libraries(mergeBy(LibraryDefinition::getSpecificationId, libraries, other.libraries))
                 .build();
     }

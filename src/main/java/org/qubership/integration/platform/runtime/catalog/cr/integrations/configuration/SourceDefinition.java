@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @Builder
 public class SourceDefinition {
     private String id;
+    private String chainId;
     private String name;
     private String language;
     private String location;

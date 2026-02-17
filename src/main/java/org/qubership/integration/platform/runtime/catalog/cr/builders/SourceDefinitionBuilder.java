@@ -20,7 +20,8 @@ public class SourceDefinitionBuilder {
         Snapshot snapshot = context.getData();
         return SourceDefinition.builder()
                 .id(snapshot.getId())
-                .name(snapshot.getChain().getId())
+                .chainId(snapshot.getChain().getId())
+                .name(String.format("%s (%s)", snapshot.getChain().getName(), snapshot.getName()))
                 .location(getSourceDslLocation(context))
                 .language(context.getBuildInfo().getOptions().getLanguage())
                 .build();
