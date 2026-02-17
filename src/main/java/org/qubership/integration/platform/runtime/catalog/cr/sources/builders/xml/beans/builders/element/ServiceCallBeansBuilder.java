@@ -39,7 +39,7 @@ public class ServiceCallBeansBuilder implements ElementBeansBuilder {
     @Override
     public void build(XMLStreamWriter2 streamWriter, ChainElement element, SourceBuilderContext context) throws Exception {
         streamWriter.writeStartElement("bean");
-        streamWriter.writeAttribute("name", "ServiceCallInfo-" + element.getOriginalId());
+        streamWriter.writeAttribute("name", "ServiceCallInfo-" + element.getId());
         streamWriter.writeAttribute("type", "org.qubership.integration.platform.engine.metadata.ServiceCallInfo");
 
         streamWriter.writeStartElement("properties");

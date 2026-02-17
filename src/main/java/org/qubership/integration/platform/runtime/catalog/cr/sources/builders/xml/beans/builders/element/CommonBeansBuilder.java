@@ -37,7 +37,7 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
             SourceBuilderContext context
     ) throws Exception {
         streamWriter.writeStartElement("bean");
-        streamWriter.writeAttribute("name", "ElementInfo-" + element.getOriginalId());
+        streamWriter.writeAttribute("name", "ElementInfo-" + element.getId());
         streamWriter.writeAttribute("type", "org.qubership.integration.platform.engine.metadata.ElementInfo");
 
         streamWriter.writeStartElement("properties");
