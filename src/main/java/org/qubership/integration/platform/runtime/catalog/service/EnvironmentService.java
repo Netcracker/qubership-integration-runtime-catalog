@@ -123,9 +123,4 @@ public class EnvironmentService extends EnvironmentBaseService {
         }
         return result;
     }
-
-    public Environment getByIdForSystemOrElseNull(String systemId, String environmentId) {
-        return environmentRepository.findBySystemIdAndId(systemId, environmentId)
-                .orElse(null);
-    }
 }
