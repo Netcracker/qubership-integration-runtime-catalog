@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.components;
+package org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.v3;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Getter;
@@ -23,7 +23,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class MessageObject {
-    private SchemaObject headers;
-    private SchemaObject payload;
+public class V3ReplyAddress {
+    private String location;
+    private String description;
 }
