@@ -49,7 +49,6 @@ class AsyncapiSpecificationParserV3Test {
         String data = readResource("asyncapi/v3/kafka-v3-simple.yaml");
         AsyncapiSpecification spec = parser.read(data);
 
-        assertEquals("2.6.0", spec.getAsyncapi());
         assertNotNull(spec.getChannels());
         assertTrue(spec.getChannels().containsKey("user/signedup"));
         assertNotNull(spec.getChannels().get("user/signedup").getPublish());
@@ -60,7 +59,6 @@ class AsyncapiSpecificationParserV3Test {
         String data = readResource("asyncapi/v3/kafka-v3-no-servers.json");
         AsyncapiSpecification spec = parser.read(data);
 
-        assertEquals("2.6.0", spec.getAsyncapi());
         assertNotNull(spec.getChannels());
         assertTrue(spec.getChannels().containsKey("events/all"));
     }
@@ -79,7 +77,6 @@ class AsyncapiSpecificationParserV3Test {
                 """;
         AsyncapiSpecification spec = parser.read(v2Yaml);
 
-        assertEquals("2.6.0", spec.getAsyncapi());
         assertNotNull(spec.getChannels());
         assertTrue(spec.getChannels().containsKey("test/topic"));
         Channel channel = spec.getChannels().get("test/topic");

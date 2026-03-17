@@ -45,7 +45,6 @@ public class AsyncApiV3Normalizer {
 
     public AsyncapiSpecification normalize(AsyncapiV3Specification v3) {
         AsyncapiSpecification v2 = new AsyncapiSpecification();
-        v2.setAsyncapi("2.6.0");
         v2.setInfo(normalizeInfo(v3.getInfo()));
         v2.setServers(normalizeServers(v3.getServers()));
         v2.setComponents(normalizeComponents(v3.getComponents()));

@@ -54,7 +54,6 @@ class AsyncApiV3NormalizerTest {
         AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-simple.yaml");
         AsyncapiSpecification v2 = normalizer.normalize(v3);
 
-        assertEquals("2.6.0", v2.getAsyncapi());
         assertNotNull(v2.getInfo());
         assertEquals("Kafka Simple API", v2.getInfo().getTitle());
         assertEquals("1.0.0", v2.getInfo().getVersion());
@@ -376,7 +375,6 @@ class AsyncApiV3NormalizerTest {
         v3.setAsyncapi("3.0.0");
         AsyncapiSpecification v2 = normalizer.normalize(v3);
 
-        assertEquals("2.6.0", v2.getAsyncapi());
         assertNotNull(v2.getChannels());
         assertTrue(v2.getChannels().isEmpty());
     }
