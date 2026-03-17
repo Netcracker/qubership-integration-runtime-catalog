@@ -27,7 +27,9 @@ import org.qubership.integration.platform.runtime.catalog.service.SystemModelSer
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -54,19 +56,16 @@ class ApiSpecificationExportServiceMergeTest {
                 .getDeclaredMethod("mergeObjectField", ObjectNode.class, ObjectNode.class, String.class);
         mergeObjectField.setAccessible(true);
 
-        // buildAsyncApiSpecification takes a private inner class SpecificationBuildParameters
-        Class<?> buildParamsClass = Arrays.stream(ApiSpecificationExportService.class.getDeclaredClasses())
-                .filter(c -> c.getSimpleName().equals("SpecificationBuildParameters"))
-                .findFirst().orElseThrow();
+        Class<?> buildParamsClass = Class.forName(
+                ApiSpecificationExportService.class.getName() + "$SpecificationBuildParameters");
         buildAsyncApiSpecification = ApiSpecificationExportService.class
                 .getDeclaredMethod("buildAsyncApiSpecification", buildParamsClass);
         buildAsyncApiSpecification.setAccessible(true);
     }
 
     private Object createBuildParams(Collection<ChainElement> elements) throws Exception {
-        Class<?> buildParamsClass = Arrays.stream(ApiSpecificationExportService.class.getDeclaredClasses())
-                .filter(c -> c.getSimpleName().equals("SpecificationBuildParameters"))
-                .findFirst().orElseThrow();
+        Class<?> buildParamsClass = Class.forName(
+                ApiSpecificationExportService.class.getName() + "$SpecificationBuildParameters");
         Method builderMethod = buildParamsClass.getDeclaredMethod("builder");
         builderMethod.setAccessible(true);
         Object builder = builderMethod.invoke(null);
