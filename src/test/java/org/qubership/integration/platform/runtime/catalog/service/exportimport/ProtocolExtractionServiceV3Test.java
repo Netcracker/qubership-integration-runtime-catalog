@@ -30,8 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ProtocolExtractionServiceV3Test {
 
@@ -104,6 +103,53 @@ class ProtocolExtractionServiceV3Test {
 
         assertNotNull(protocol);
         assertEquals(OperationProtocol.KAFKA, protocol);
+    }
+
+    @Test
+    void getProtocolFromAsyncSpecWithServersButNoProtocol() {
+        // servers exist but have no "protocol" field → protocols.isEmpty() branch
+        String yaml = """
+                asyncapi: 2.6.0
+                info:
+                  title: Test
+                  version: 1.0.0
+                  x-protocol: kafka
+                servers:
+                  production:
+                    url: kafka:9092
+                channels:
+                  test/topic:
+                    publish:
+                      operationId: testOp
+                """;
+        MockMultipartFile file = new MockMultipartFile("spec", "spec.yaml", null,
+                yaml.getBytes(StandardCharsets.UTF_8));
+        Collection<MultipartFile> files = Collections.singletonList(file);
+
+        OperationProtocol protocol = service.getOperationProtocol(files);
+
+        // Falls through to x-protocol since servers have no protocol field
+        assertNotNull(protocol);
+        assertEquals(OperationProtocol.KAFKA, protocol);
+    }
+
+    @Test
+    void getProtocolFromAsyncSpecWithNoServersAndNoInfo() {
+        // No servers, no info → returns null
+        String yaml = """
+                asyncapi: 2.6.0
+                channels:
+                  test/topic:
+                    publish:
+                      operationId: testOp
+                """;
+        MockMultipartFile file = new MockMultipartFile("spec", "spec.yaml", null,
+                yaml.getBytes(StandardCharsets.UTF_8));
+        Collection<MultipartFile> files = Collections.singletonList(file);
+
+        OperationProtocol protocol = service.getOperationProtocol(files);
+
+        assertNull(protocol);
     }
 
     private byte[] readResourceBytes(String path) throws IOException {

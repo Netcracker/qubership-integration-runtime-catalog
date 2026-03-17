@@ -25,13 +25,15 @@ import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.
 import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.Message;
 import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.OperationObject;
 import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.components.Components;
-import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.v3.AsyncapiV3Specification;
+import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.v3.*;
 import org.qubership.integration.platform.runtime.catalog.service.resolvers.async.impl.AMQPSpecificationResolver;
 import org.qubership.integration.platform.runtime.catalog.service.resolvers.async.impl.KafkaSpecificationResolver;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -377,6 +379,263 @@ class AsyncApiV3NormalizerTest {
         assertEquals("2.6.0", v2.getAsyncapi());
         assertNotNull(v2.getChannels());
         assertTrue(v2.getChannels().isEmpty());
+    }
+
+    @Test
+    void normalizeMultipleOperationMessagesProducesOneOf() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-multi-message.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        Channel channel = v2.getChannels().get("events/all");
+        assertNotNull(channel);
+        assertNotNull(channel.getPublish());
+        Message msg = channel.getPublish().getMessage();
+        assertNotNull(msg);
+        assertNotNull(msg.getOneOf(), "Multiple operation messages should produce oneOf");
+        assertEquals(2, msg.getOneOf().size());
+    }
+
+    @Test
+    void normalizeChannelMessagesWithoutExplicitOpMessagesProducesOneOf() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-multi-message.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        // consumeFromChannel has no explicit messages → falls through to single channel message
+        Channel channel = v2.getChannels().get("commands/process");
+        assertNotNull(channel);
+        assertNotNull(channel.getSubscribe());
+        Message msg = channel.getSubscribe().getMessage();
+        assertNotNull(msg);
+        // Single channel message → direct message, not oneOf
+        assertNull(msg.getOneOf());
+        assertNotNull(msg.getPayload());
+        assertEquals("DoSomething", msg.getName());
+    }
+
+    @Test
+    void normalizeEdgeCaseMultipleChannelMessagesNoOpMessages() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-edge-cases.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        // opWithChannelMessages references existingChannel with 2 messages but has no explicit op messages
+        Channel channel = v2.getChannels().get("existing/topic");
+        assertNotNull(channel);
+        assertNotNull(channel.getSubscribe());
+        Message msg = channel.getSubscribe().getMessage();
+        assertNotNull(msg);
+        assertNotNull(msg.getOneOf(), "2 channel messages with no op messages should produce oneOf");
+        assertEquals(2, msg.getOneOf().size());
+    }
+
+    @Test
+    void normalizeOperationWithMissingChannelSkips() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-edge-cases.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        // opWithMissingChannel references nonExistentChannel — should be skipped
+        // opWithNoChannelRef has no channel — should also be skipped
+        // Only existingChannel-related operations should produce channels
+        for (Channel ch : v2.getChannels().values()) {
+            // Verify no operation produced from the missing channel or no-ref operation
+            if (ch.getPublish() != null) {
+                assertNotEquals("References missing channel", ch.getPublish().getSummary());
+            }
+            if (ch.getSubscribe() != null) {
+                assertNotEquals("Has no channel reference at all", ch.getSubscribe().getSummary());
+            }
+        }
+    }
+
+    @Test
+    void normalizeInlineMessageEntry() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-edge-cases.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        // opWithInlineMessage has a single inline message (no $ref) with name and payload
+        Channel channel = v2.getChannels().get("existing/topic");
+        assertNotNull(channel);
+        // This is the "send" operation on the same channel
+        assertNotNull(channel.getPublish());
+        Message msg = channel.getPublish().getMessage();
+        assertNotNull(msg);
+        assertEquals("InlineMsg", msg.getName());
+        assertNotNull(msg.getPayload());
+    }
+
+    @Test
+    void normalizeBareChannelRef() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-edge-cases.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        // opWithBareRef has channel $ref = 'some-direct-ref' (not #/channels/ prefix)
+        // resolveChannelKey should return 'some-direct-ref' directly, channel won't be found → skipped
+        assertFalse(v2.getChannels().containsKey("some-direct-ref"),
+                "Bare ref to non-existent channel should result in skipped operation");
+    }
+
+    @Test
+    void normalizeNullInfo() {
+        AsyncapiV3Specification v3 = new AsyncapiV3Specification();
+        v3.setAsyncapi("3.0.0");
+        v3.setInfo(null);
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        assertNotNull(v2.getInfo(), "Null info should produce empty Info object");
+    }
+
+    @Test
+    void normalizeNullComponents() {
+        AsyncapiV3Specification v3 = new AsyncapiV3Specification();
+        v3.setAsyncapi("3.0.0");
+        v3.setComponents(null);
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        assertNotNull(v2.getComponents(), "Null components should produce empty Components");
+    }
+
+    @Test
+    void normalizeReplyWithChannelMessagesAndNoExplicitReplyMessages() throws IOException {
+        // Build a v3 spec programmatically: reply has no messages, reply channel has messages
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-request-reply.yaml");
+
+        // Modify to remove reply messages so it falls through to channel messages
+        V3Operation sendOp = v3.getOperations().get("sendOrderRequest");
+        sendOp.getReply().setMessages(null);
+
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        assertTrue(v2.getChannels().containsKey("order/reply"));
+        Channel replyChannel = v2.getChannels().get("order/reply");
+        assertNotNull(replyChannel.getSubscribe());
+        Message replyMsg = replyChannel.getSubscribe().getMessage();
+        assertNotNull(replyMsg, "Reply should have message from channel when reply.messages is null");
+    }
+
+    @Test
+    void normalizeReplyWithNullChannel() {
+        AsyncapiV3Specification v3 = new AsyncapiV3Specification();
+        v3.setAsyncapi("3.0.0");
+
+        V3Channel channel = new V3Channel();
+        channel.setAddress("test/addr");
+        Map<String, V3Channel> channels = new LinkedHashMap<>();
+        channels.put("testCh", channel);
+        v3.setChannels(channels);
+
+        V3Operation op = new V3Operation();
+        op.setAction("send");
+        V3ChannelRef chRef = new V3ChannelRef();
+        chRef.setRef("#/channels/testCh");
+        op.setChannel(chRef);
+        // Reply with null channel
+        V3Reply reply = new V3Reply();
+        reply.setChannel(null);
+        op.setReply(reply);
+
+        Map<String, V3Operation> operations = new LinkedHashMap<>();
+        operations.put("testOp", op);
+        v3.setOperations(operations);
+
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+        // Should not crash; reply with null channel is just skipped
+        assertTrue(v2.getChannels().containsKey("test/addr"));
+    }
+
+    @Test
+    void normalizeChannelMessageWithRefToComponent() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-channel-ref-messages.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        // consumeRefChannel: single channel message is $ref to component → convertChannelMessageEntry $ref branch
+        Channel channel = v2.getChannels().get("events/ref");
+        assertNotNull(channel);
+        assertNotNull(channel.getSubscribe());
+        Message msg = channel.getSubscribe().getMessage();
+        assertNotNull(msg);
+        assertEquals("#/components/messages/SharedEvent", msg.get$ref(),
+                "Channel message $ref to component should be converted to v2 component ref");
+    }
+
+    @Test
+    void normalizeMixedChannelMessagesOneOf() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-channel-ref-messages.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        // consumeMixedChannel: 2 channel messages (1 inline + 1 $ref), no explicit op messages → oneOf via channelMessageToMap
+        Channel channel = v2.getChannels().get("events/mixed");
+        assertNotNull(channel);
+        assertNotNull(channel.getSubscribe());
+        Message msg = channel.getSubscribe().getMessage();
+        assertNotNull(msg);
+        assertNotNull(msg.getOneOf(), "Mixed channel messages should produce oneOf");
+        assertEquals(2, msg.getOneOf().size());
+    }
+
+    @Test
+    void normalizeMultipleOpMessagesWithChannelResolution() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-channel-ref-messages.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        // sendWithMultipleChannelRefs: 2 messages referencing different channel messages → resolveMessageRef
+        Channel channel = v2.getChannels().get("events/inline");
+        assertNotNull(channel);
+        assertNotNull(channel.getPublish());
+        Message msg = channel.getPublish().getMessage();
+        assertNotNull(msg);
+        assertNotNull(msg.getOneOf(), "Multiple operation messages should produce oneOf");
+        assertEquals(2, msg.getOneOf().size());
+
+        // First message is resolved inline from inlineChannel (has payload)
+        Map<String, Object> first = msg.getOneOf().get(0);
+        assertTrue(first.containsKey("payload"), "Inline channel message should be resolved with payload");
+
+        // Second message references mixedChannel message
+        Map<String, Object> second = msg.getOneOf().get(1);
+        assertTrue(second.containsKey("payload"), "Inline channel message from another channel should be resolved");
+    }
+
+    @Test
+    void normalizeReceiveActionReplyBecomesPublish() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-channel-ref-messages.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        // receiveWithReply: action=receive → reply should become publish
+        Channel replyChannel = v2.getChannels().get("reply/target");
+        assertNotNull(replyChannel);
+        assertNotNull(replyChannel.getPublish(), "Reply of receive action should become publish");
+        assertNull(replyChannel.getSubscribe());
+        assertEquals("receiveWithReplyReply", replyChannel.getPublish().getOperationId());
+    }
+
+    @Test
+    void normalizeConvertComponentRefPreservesAlreadyComponentRef() {
+        // Test convertComponentRef indirectly via a spec where operation message is $ref to component
+        AsyncapiV3Specification v3 = new AsyncapiV3Specification();
+        v3.setAsyncapi("3.0.0");
+
+        V3Channel channel = new V3Channel();
+        channel.setAddress("test/addr");
+        Map<String, V3Channel> channels = new LinkedHashMap<>();
+        channels.put("testCh", channel);
+        v3.setChannels(channels);
+
+        V3Operation op = new V3Operation();
+        op.setAction("send");
+        V3ChannelRef chRef = new V3ChannelRef();
+        chRef.setRef("#/channels/testCh");
+        op.setChannel(chRef);
+        // Single message with $ref to component (not channel) — should stay as-is
+        op.setMessages(List.of(Map.of("$ref", "#/components/messages/Foo")));
+
+        Map<String, V3Operation> operations = new LinkedHashMap<>();
+        operations.put("testOp", op);
+        v3.setOperations(operations);
+
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+        Channel v2Channel = v2.getChannels().get("test/addr");
+        assertNotNull(v2Channel.getPublish());
+        Message msg = v2Channel.getPublish().getMessage();
+        assertEquals("#/components/messages/Foo", msg.get$ref());
     }
 
     private AsyncapiV3Specification readYamlV3(String path) throws IOException {

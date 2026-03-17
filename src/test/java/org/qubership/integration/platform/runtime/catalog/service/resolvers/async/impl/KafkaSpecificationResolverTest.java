@@ -30,6 +30,7 @@ import org.qubership.integration.platform.runtime.catalog.service.resolvers.asyn
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -348,6 +349,72 @@ class KafkaSpecificationResolverTest {
 
         assertNotNull(operation.getResponseSchemas());
         assertTrue(operation.getResponseSchemas().isEmpty());
+    }
+
+    @Test
+    void getOperationObjectsWithPublishOnly() {
+        Channel channel = new Channel();
+        OperationObject pub = new OperationObject();
+        pub.setOperationId("pubOp");
+        channel.setPublish(pub);
+
+        List<OperationObject> ops = resolver.getOperationObjects(channel);
+        assertEquals(1, ops.size());
+        assertEquals("pubOp", ops.get(0).getOperationId());
+    }
+
+    @Test
+    void getOperationObjectsWithSubscribeOnly() {
+        Channel channel = new Channel();
+        OperationObject sub = new OperationObject();
+        sub.setOperationId("subOp");
+        channel.setSubscribe(sub);
+
+        List<OperationObject> ops = resolver.getOperationObjects(channel);
+        assertEquals(1, ops.size());
+        assertEquals("subOp", ops.get(0).getOperationId());
+    }
+
+    @Test
+    void getOperationObjectsWithBoth() {
+        Channel channel = new Channel();
+        OperationObject pub = new OperationObject();
+        pub.setOperationId("pubOp");
+        OperationObject sub = new OperationObject();
+        sub.setOperationId("subOp");
+        channel.setPublish(pub);
+        channel.setSubscribe(sub);
+
+        List<OperationObject> ops = resolver.getOperationObjects(channel);
+        assertEquals(2, ops.size());
+    }
+
+    @Test
+    void getOperationObjectsWithEmptyChannel() {
+        Channel channel = new Channel();
+        List<OperationObject> ops = resolver.getOperationObjects(channel);
+        assertTrue(ops.isEmpty());
+    }
+
+    @Test
+    void getSpecificationJsonNodeWithTopic() {
+        Channel channel = new Channel();
+        OperationObject op = new OperationObject();
+
+        JsonNode node = resolver.getSpecificationJsonNode("my.topic", channel, op);
+        assertEquals("my.topic", node.get("topic").asText());
+        assertFalse(node.has("maasClassifierName"));
+    }
+
+    @Test
+    void getSpecificationJsonNodeWithMaasClassifier() {
+        Channel channel = new Channel();
+        OperationObject op = new OperationObject();
+        op.setMaasClassifierName("my-classifier");
+
+        JsonNode node = resolver.getSpecificationJsonNode("my.topic", channel, op);
+        assertEquals("my.topic", node.get("topic").asText());
+        assertEquals("my-classifier", node.get("maasClassifierName").asText());
     }
 
     private AsyncapiSpecification readYaml(String path) throws IOException {

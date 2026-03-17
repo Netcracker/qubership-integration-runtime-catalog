@@ -16,25 +16,35 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ApiSpecificationExportException;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.service.SystemModelService;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 class ApiSpecificationExportServiceMergeTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private ApiSpecificationExportService service;
+    private SystemModelService systemModelService;
     private Method mergeAsyncApiSpec;
     private Method mergeObjectField;
+    private Method buildAsyncApiSpecification;
 
     @BeforeEach
     void setUp() throws Exception {
-        service = new ApiSpecificationExportService("/qip-routes", null, null, null);
+        systemModelService = mock(SystemModelService.class);
+        service = new ApiSpecificationExportService("/qip-routes", null, null, systemModelService);
 
         mergeAsyncApiSpec = ApiSpecificationExportService.class
                 .getDeclaredMethod("mergeAsyncApiSpec", ObjectNode.class, ObjectNode.class);
@@ -43,6 +53,35 @@ class ApiSpecificationExportServiceMergeTest {
         mergeObjectField = ApiSpecificationExportService.class
                 .getDeclaredMethod("mergeObjectField", ObjectNode.class, ObjectNode.class, String.class);
         mergeObjectField.setAccessible(true);
+
+        // buildAsyncApiSpecification takes a private inner class SpecificationBuildParameters
+        Class<?> buildParamsClass = Arrays.stream(ApiSpecificationExportService.class.getDeclaredClasses())
+                .filter(c -> c.getSimpleName().equals("SpecificationBuildParameters"))
+                .findFirst().orElseThrow();
+        buildAsyncApiSpecification = ApiSpecificationExportService.class
+                .getDeclaredMethod("buildAsyncApiSpecification", buildParamsClass);
+        buildAsyncApiSpecification.setAccessible(true);
+    }
+
+    private Object createBuildParams(Collection<ChainElement> elements) throws Exception {
+        Class<?> buildParamsClass = Arrays.stream(ApiSpecificationExportService.class.getDeclaredClasses())
+                .filter(c -> c.getSimpleName().equals("SpecificationBuildParameters"))
+                .findFirst().orElseThrow();
+        Method builderMethod = buildParamsClass.getDeclaredMethod("builder");
+        builderMethod.setAccessible(true);
+        Object builder = builderMethod.invoke(null);
+
+        Class<?> builderClass = builder.getClass();
+        builderClass.getDeclaredMethod("elements", Collection.class).invoke(builder, elements);
+        builderClass.getDeclaredMethod("externalRoutes", boolean.class).invoke(builder, false);
+        return builderClass.getDeclaredMethod("build").invoke(builder);
+    }
+
+    private ChainElement createTriggerElement(String modelId) {
+        ChainElement element = new ChainElement();
+        element.getProperties().put("integrationOperationPath", "/some/path");
+        element.getProperties().put("integrationSpecificationId", modelId);
+        return element;
     }
 
     @Test
@@ -200,5 +239,90 @@ class ApiSpecificationExportServiceMergeTest {
                 org.qubership.integration.platform.runtime.catalog.model.apispec.ApiSpecificationFormat.YAML,
                 guessFormat.invoke(service, "asyncapi: 3.0.0")
         );
+    }
+
+    @Test
+    void buildAsyncApiSpecificationSingleYamlSpec() throws Exception {
+        String yamlSpec = "asyncapi: 2.6.0\ninfo:\n  title: Test\nchannels:\n  test: {}";
+        when(systemModelService.getMainSystemModelSource("model-1")).thenReturn(yamlSpec);
+
+        ChainElement element = createTriggerElement("model-1");
+        Object params = createBuildParams(List.of(element));
+
+        JsonNode result = (JsonNode) buildAsyncApiSpecification.invoke(service, params);
+
+        assertNotNull(result);
+        assertEquals("2.6.0", result.get("asyncapi").asText());
+        assertEquals("Test", result.at("/info/title").asText());
+    }
+
+    @Test
+    void buildAsyncApiSpecificationSingleJsonSpec() throws Exception {
+        String jsonSpec = "{\"asyncapi\":\"3.0.0\",\"info\":{\"title\":\"JSON Test\"}}";
+        when(systemModelService.getMainSystemModelSource("model-json")).thenReturn(jsonSpec);
+
+        ChainElement element = createTriggerElement("model-json");
+        Object params = createBuildParams(List.of(element));
+
+        JsonNode result = (JsonNode) buildAsyncApiSpecification.invoke(service, params);
+
+        assertNotNull(result);
+        assertEquals("3.0.0", result.get("asyncapi").asText());
+    }
+
+    @Test
+    void buildAsyncApiSpecificationMergesMultipleSpecs() throws Exception {
+        String spec1 = "asyncapi: 2.6.0\nchannels:\n  ch1:\n    description: first";
+        String spec2 = "asyncapi: 2.6.0\nchannels:\n  ch2:\n    description: second";
+        when(systemModelService.getMainSystemModelSource("m1")).thenReturn(spec1);
+        when(systemModelService.getMainSystemModelSource("m2")).thenReturn(spec2);
+
+        ChainElement e1 = createTriggerElement("m1");
+        ChainElement e2 = createTriggerElement("m2");
+        Object params = createBuildParams(List.of(e1, e2));
+
+        JsonNode result = (JsonNode) buildAsyncApiSpecification.invoke(service, params);
+
+        assertNotNull(result);
+        assertTrue(result.has("channels"));
+        assertTrue(result.get("channels").has("ch1"));
+        assertTrue(result.get("channels").has("ch2"));
+    }
+
+    @Test
+    void buildAsyncApiSpecificationThrowsForEmptyElements() throws Exception {
+        Object params = createBuildParams(Collections.emptyList());
+
+        InvocationTargetException ex = assertThrows(InvocationTargetException.class,
+                () -> buildAsyncApiSpecification.invoke(service, params));
+        assertInstanceOf(ApiSpecificationExportException.class, ex.getCause());
+        assertTrue(ex.getCause().getMessage().contains("No async trigger"));
+    }
+
+    @Test
+    void buildAsyncApiSpecificationThrowsForNoModelIds() throws Exception {
+        ChainElement element = new ChainElement();
+        // no integrationOperationPath → isImplementedServiceTrigger returns false
+        Object params = createBuildParams(List.of(element));
+
+        InvocationTargetException ex = assertThrows(InvocationTargetException.class,
+                () -> buildAsyncApiSpecification.invoke(service, params));
+        assertInstanceOf(ApiSpecificationExportException.class, ex.getCause());
+        assertTrue(ex.getCause().getMessage().contains("No specification model"));
+    }
+
+    @Test
+    void buildAsyncApiSpecificationFiltersNullModelIds() throws Exception {
+        String spec = "{\"asyncapi\":\"2.6.0\",\"info\":{\"title\":\"Test\"}}";
+        when(systemModelService.getMainSystemModelSource("valid")).thenReturn(spec);
+
+        ChainElement withModel = createTriggerElement("valid");
+        ChainElement withNullModel = new ChainElement();
+        withNullModel.getProperties().put("integrationOperationPath", "/path");
+        // no integrationSpecificationId → null model ID, should be filtered out
+        Object params = createBuildParams(List.of(withModel, withNullModel));
+
+        JsonNode result = (JsonNode) buildAsyncApiSpecification.invoke(service, params);
+        assertNotNull(result);
     }
 }
