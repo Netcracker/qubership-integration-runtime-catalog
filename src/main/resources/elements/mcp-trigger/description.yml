@@ -45,6 +45,7 @@ properties:
       description: JSON Schema defining expected parameters
       type: string
       mandatory: true
+      default: '{ "type": "object", "additionalProperties": false }'
     - name: outputSchema
       title: Output schema
       description: Optional JSON Schema defining expected output structure
