@@ -5,6 +5,7 @@ import org.qubership.integration.platform.runtime.catalog.service.deployment.pro
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -32,6 +33,10 @@ public class McpTriggerPropertiesBuilder implements ElementPropertiesBuilder {
                 "idempotent",
                 "openWorld",
                 "requiresLocal"
-        ).collect(Collectors.toMap(Function.identity(), element::getPropertyAsString));
+        ).collect(Collectors.toMap(
+                Function.identity(),
+                key -> Optional.ofNullable(element.getProperties().get(key))
+                        .map(String::valueOf)
+                        .orElse("")));
     }
 }
