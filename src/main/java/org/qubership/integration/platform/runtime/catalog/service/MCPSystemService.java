@@ -1,0 +1,151 @@
+package org.qubership.integration.platform.runtime.catalog.service;
+
+import jakarta.persistence.EntityNotFoundException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SystemDeleteException;
+import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.mcp.MCPSystemRepository;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemSearchRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemCreateRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemUpdateRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.MCPSystemMapper;
+import org.qubership.integration.platform.runtime.catalog.service.filter.MCPSystemFilterSpecificationBuilder;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+@Transactional
+public class MCPSystemService {
+    private final MCPSystemRepository mcpSystemRepository;
+    private final MCPSystemMapper mcpSystemMapper;
+    private final ActionsLogService actionLogger;
+    private final MCPSystemFilterSpecificationBuilder mcpSystemFilterSpecificationBuilder;
+    private final ChainRepository chainRepository;
+
+    @Autowired
+    public MCPSystemService(
+            MCPSystemRepository mcpSystemRepository,
+            MCPSystemMapper mcpSystemMapper,
+            ActionsLogService actionLogger,
+            MCPSystemFilterSpecificationBuilder mcpSystemFilterSpecificationBuilder,
+            ChainRepository chainRepository
+    ) {
+        this.mcpSystemRepository = mcpSystemRepository;
+        this.mcpSystemMapper = mcpSystemMapper;
+        this.actionLogger = actionLogger;
+        this.mcpSystemFilterSpecificationBuilder = mcpSystemFilterSpecificationBuilder;
+        this.chainRepository = chainRepository;
+    }
+
+    public List<MCPSystem> findAll(boolean withChains) {
+        List<MCPSystem> systems = mcpSystemRepository.findAll();
+        return withChains
+            ? enrichWithChains(systems)
+            : systems;
+    }
+
+    public List<MCPSystem> findAll() {
+        return findAll(false);
+    }
+
+    public List<MCPSystem> findAllById(List<String> ids) {
+        return mcpSystemRepository.findAllById(ids);
+    }
+
+    public Optional<MCPSystem> findById(String id) {
+        return mcpSystemRepository.findById(id);
+    }
+
+    public MCPSystem create(MCPSystemCreateRequestDTO request) {
+        MCPSystem mcpSystem = new MCPSystem();
+        mcpSystem.setName(request.getName());
+        mcpSystem.setDescription(request.getDescription());
+        mcpSystem.setIdentifier(request.getIdentifier());
+        mcpSystem.setInstructions(request.getInstructions());
+        return mcpSystemRepository.save(mcpSystem);
+    }
+
+    public MCPSystem create(MCPSystem system, boolean isImport) {
+        system = mcpSystemRepository.save(system);
+        logAction(system, isImport ? LogOperation.IMPORT : LogOperation.CREATE);
+        return system;
+    }
+
+    public MCPSystem update(String id, MCPSystemUpdateRequestDTO request) {
+        Optional<MCPSystem> mcpSystem = mcpSystemRepository.findById(id);
+        if (mcpSystem.isEmpty()) {
+            throw new EntityNotFoundException(String.format("MCP system with id %s not found", id));
+        }
+        MCPSystem system = mcpSystem.get();
+        system = mcpSystemMapper.update(system, request);
+        return update(system);
+    }
+
+    public MCPSystem update(MCPSystem system) {
+        system = mcpSystemRepository.save(system);
+        logAction(system, LogOperation.UPDATE);
+        return system;
+    }
+
+    public void deleteById(String id) {
+        if (isUsedByChain(id)) {
+            throw new SystemDeleteException("Service used by one or more chains");
+        }
+        mcpSystemRepository.findById(id).ifPresent(system -> {
+            mcpSystemRepository.delete(system);
+            logAction(system, LogOperation.DELETE);
+        });
+    }
+
+    public List<MCPSystem> searchSystems(SystemSearchRequestDTO request) {
+        return searchSystems(request.getSearchCondition());
+    }
+
+    public List<MCPSystem> searchSystems(String searchCondition) {
+        Specification<MCPSystem> specification = mcpSystemFilterSpecificationBuilder.buildSearch(searchCondition);
+        return enrichWithChains(mcpSystemRepository.findAll(specification));
+    }
+
+    public List<MCPSystem> filter(List<FilterRequestDTO> filters) {
+        Specification<MCPSystem> specification = mcpSystemFilterSpecificationBuilder.buildFilters(filters);
+        return enrichWithChains(mcpSystemRepository.findAll(specification));
+    }
+
+    private void logAction(MCPSystem system, LogOperation operation) {
+        actionLogger.logAction(ActionLog.builder()
+                .entityType(EntityType.MCP_SYSTEM)
+                .entityId(system.getId())
+                .entityName(system.getName())
+                .parentId(null)
+                .operation(operation)
+                .build());
+    }
+
+    public boolean isUsedByChain(String id) {
+        return !findChainsByMcpSystemId(id).isEmpty();
+    }
+
+    private void enrichWithChains(MCPSystem system) {
+        system.setChains(findChainsByMcpSystemId(system.getId()));
+    }
+
+    private List<MCPSystem> enrichWithChains(List<MCPSystem> systems) {
+        systems.forEach(this::enrichWithChains);
+        return systems;
+    }
+
+    private List<Chain> findChainsByMcpSystemId(String mcpSystemId) {
+        return chainRepository.findChainsWithElementPropertyValue(CamelNames.MCP_SERVICE_ID, mcpSystemId);
+    }
+}

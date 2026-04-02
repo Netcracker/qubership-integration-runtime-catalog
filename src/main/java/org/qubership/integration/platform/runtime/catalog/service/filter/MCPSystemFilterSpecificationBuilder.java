@@ -1,0 +1,87 @@
+package org.qubership.integration.platform.runtime.catalog.service.filter;
+
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
+import org.qubership.integration.platform.runtime.catalog.model.filter.FilterFeature;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Component;
+
+import java.util.*;
+import java.util.function.BiFunction;
+import java.util.stream.Stream;
+
+@Component
+public class MCPSystemFilterSpecificationBuilder {
+    private final FilterConditionPredicateBuilderFactory filterConditionPredicateBuilderFactory;
+
+    @Autowired
+    public MCPSystemFilterSpecificationBuilder(
+            FilterConditionPredicateBuilderFactory filterConditionPredicateBuilderFactory
+    ) {
+        this.filterConditionPredicateBuilderFactory = filterConditionPredicateBuilderFactory;
+    }
+
+    public Specification<MCPSystem> buildSearch(String searchString) {
+        Collection<FilterRequestDTO> filters = buildFiltersFromSearchString(searchString);
+        return build(filters, CriteriaBuilder::or, true);
+    }
+
+    public Specification<MCPSystem> buildFilters(Collection<FilterRequestDTO> filters) {
+        return build(filters, CriteriaBuilder::and, false);
+    }
+
+    private List<FilterRequestDTO> buildFiltersFromSearchString(String searchString) {
+        return Stream.of(
+                FilterFeature.ID,
+                FilterFeature.NAME,
+                FilterFeature.DESCRIPTION,
+                FilterFeature.IDENTIFIER,
+                FilterFeature.INSTRUCTIONS,
+                FilterFeature.LABELS
+        ).map(feature -> FilterRequestDTO
+                .builder()
+                .feature(feature)
+                .value(searchString)
+                .condition(FilterCondition.CONTAINS)
+                .build()
+        ).toList();
+    }
+
+    public Specification<MCPSystem> build(
+            Collection<FilterRequestDTO> filters,
+            BiFunction<CriteriaBuilder, Predicate[], Predicate> predicateAccumulator,
+            boolean searchMode
+    ) {
+        return (root, query, criteriaBuilder) -> {
+            Predicate[] predicates = filters.stream()
+                    .map(filter -> buildPredicate(root, criteriaBuilder, filter))
+                    .toArray(Predicate[]::new);
+            return predicateAccumulator.apply(criteriaBuilder, predicates);
+        };
+    }
+
+    private Predicate buildPredicate(
+            Root<MCPSystem> root,
+            CriteriaBuilder criteriaBuilder,
+            FilterRequestDTO filter
+    ) {
+        boolean isNegativeElementFilter = FilterCondition.IS_NOT.equals(filter.getCondition())
+                || FilterCondition.NOT_IN.equals(filter.getCondition());
+        var conditionPredicateBuilder = filterConditionPredicateBuilderFactory
+                .<String>getPredicateBuilder(criteriaBuilder, filter.getCondition());
+        String value = filter.getValue();
+        return switch (filter.getFeature()) {
+            case ID -> conditionPredicateBuilder.apply(root.get("id"), value);
+            case NAME -> conditionPredicateBuilder.apply(root.get("name"), value);
+            case DESCRIPTION -> conditionPredicateBuilder.apply(root.get("description"), value);
+            case INSTRUCTIONS -> conditionPredicateBuilder.apply(root.get("assumptions"), value);
+            case IDENTIFIER -> conditionPredicateBuilder.apply(root.get("businessDescription"), value);
+            default -> throw new IllegalStateException("Unexpected filter feature: " + filter.getFeature());
+        };
+    }
+}
