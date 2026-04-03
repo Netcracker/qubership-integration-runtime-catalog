@@ -100,7 +100,7 @@ public class MCPSystemFilterSpecificationBuilder {
             case NAME -> conditionPredicateBuilder.apply(root.get("name"), value);
             case DESCRIPTION -> conditionPredicateBuilder.apply(root.get("description"), value);
             case INSTRUCTIONS -> conditionPredicateBuilder.apply(root.get("assumptions"), value);
-            case IDENTIFIER -> conditionPredicateBuilder.apply(root.get("businessDescription"), value);
+            case IDENTIFIER -> conditionPredicateBuilder.apply(root.get("identifier"), value);
             default -> throw new IllegalStateException("Unexpected filter feature: " + filter.getFeature());
         };
     }
