@@ -12,7 +12,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.mcp.MCPSystemRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemLabelDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemCreateRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemUpdateRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.MCPSystemMapper;
@@ -22,6 +21,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -94,19 +94,8 @@ public class MCPSystemService {
         MCPSystem system = mcpSystem.get();
         MCPSystem updatedSystem = mcpSystemMapper.updateWithoutLabels(system, request);
 
-        Map<String, SystemLabelDTO> labelMap = request.getLabels().stream()
-                .collect(Collectors.toMap(SystemLabelDTO::getName, Function.identity()));
-
-        updatedSystem.getLabels().removeIf(label -> !labelMap.containsKey(label.getName()));
-        updatedSystem.getLabels().forEach(label -> {
-            SystemLabelDTO labelDTO = labelMap.remove(label.getName());
-            mcpSystemMapper.updateLabel(label, labelDTO);
-        });
-        updatedSystem.getLabels().addAll(labelMap.values().stream().map(l -> {
-            MCPSystemLabel label = mcpSystemMapper.asLabel(l);
-            label.setSystem(updatedSystem);
-            return label;
-        }).toList());
+        List<MCPSystemLabel> newLabels = request.getLabels().stream().map(mcpSystemMapper::asLabel).toList();
+        updateLabels(updatedSystem, updatedSystem.getLabels(), newLabels);
         return update(updatedSystem);
     }
 
@@ -114,6 +103,23 @@ public class MCPSystemService {
         system = mcpSystemRepository.save(system);
         logAction(system, LogOperation.UPDATE);
         return system;
+    }
+
+    public void updateLabels(
+            MCPSystem system,
+            Collection<MCPSystemLabel> currentLabels,
+            Collection<MCPSystemLabel> newLabels
+    ) {
+        Map<String, MCPSystemLabel> labelMap = newLabels.stream()
+                .collect(Collectors.toMap(MCPSystemLabel::getName, Function.identity()));
+
+        currentLabels.removeIf(label -> !labelMap.containsKey(label.getName()));
+        currentLabels.forEach(label -> {
+            MCPSystemLabel updatedLabel = labelMap.remove(label.getName());
+            label.setTechnical(updatedLabel.isTechnical());
+        });
+        labelMap.values().forEach(label -> label.setSystem(system));
+        currentLabels.addAll(labelMap.values());
     }
 
     public void deleteById(String id) {

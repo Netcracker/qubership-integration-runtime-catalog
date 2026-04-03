@@ -419,10 +419,11 @@ public class MCPSystemImportExportService {
     }
 
     private ImportSystemStatus enrichAndSaveSystem(MCPSystem system) {
-        ImportSystemStatus status;
         Optional<MCPSystem> oldSystem = mcpSystemService.findById(system.getId());
 
         if (oldSystem.isPresent()) {
+            mcpSystemService.updateLabels(system, oldSystem.get().getLabels(),  system.getLabels());
+            system.setLabels(oldSystem.get().getLabels());
             mcpSystemService.update(system);
             return ImportSystemStatus.UPDATED;
         } else {
