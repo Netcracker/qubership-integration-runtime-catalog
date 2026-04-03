@@ -1,8 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.service.filter;
 
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.*;
 import org.apache.poi.util.StringUtil;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterFeature;
@@ -99,9 +97,26 @@ public class MCPSystemFilterSpecificationBuilder {
             case ID -> conditionPredicateBuilder.apply(root.get("id"), value);
             case NAME -> conditionPredicateBuilder.apply(root.get("name"), value);
             case DESCRIPTION -> conditionPredicateBuilder.apply(root.get("description"), value);
-            case INSTRUCTIONS -> conditionPredicateBuilder.apply(root.get("assumptions"), value);
+            case INSTRUCTIONS -> conditionPredicateBuilder.apply(root.get("instructions"), value);
             case IDENTIFIER -> conditionPredicateBuilder.apply(root.get("identifier"), value);
+            case LABELS -> {
+                Predicate predicate = conditionPredicateBuilder.apply(getJoin(root, "labels").get("name"), value);
+                boolean negativeLabelFilter =
+                        filter.getCondition() == FilterCondition.IS_NOT
+                                || filter.getCondition() == FilterCondition.DOES_NOT_CONTAIN;
+
+                yield negativeLabelFilter
+                        ? criteriaBuilder.or(predicate, criteriaBuilder.isNull(getJoin(root, "labels").get("name")))
+                        : predicate;
+            }
             default -> throw new IllegalStateException("Unexpected filter feature: " + filter.getFeature());
         };
+    }
+
+    private Join<MCPSystem, ?> getJoin(Root<MCPSystem> root, String attributeName) {
+        return root.getJoins().stream()
+                .filter(join -> join.getAttribute().getName().equals(attributeName))
+                .findAny()
+                .orElseGet(() -> root.join(attributeName, JoinType.LEFT));
     }
 }
