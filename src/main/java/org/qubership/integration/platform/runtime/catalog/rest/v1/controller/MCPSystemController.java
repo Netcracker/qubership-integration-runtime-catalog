@@ -8,10 +8,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemSearchRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemCreateRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemFilterRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemResponseDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemUpdateRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.MCPSystemMapper;
@@ -95,24 +94,13 @@ public class MCPSystemController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/search")
-    @Operation(description = "Search MCP systems")
-    public ResponseEntity<List<MCPSystemResponseDTO>> searchSystems(
-            @RequestBody SystemSearchRequestDTO systemSearchRequestDTO
-    ) {
-        log.debug("Request to search MCP systems: {}", systemSearchRequestDTO);
-        List<MCPSystem> systems = mcpSystemService.searchSystems(systemSearchRequestDTO);
-        List<MCPSystemResponseDTO> dtos = mcpSystemMapper.toResponseDtos(systems);
-        return ResponseEntity.ok(dtos);
-    }
-
     @PostMapping("/filter")
     @Operation(description = "Filter MCP systems")
     public ResponseEntity<List<MCPSystemResponseDTO>> filter(
-            @RequestBody List<FilterRequestDTO> filters
+            @RequestBody MCPSystemFilterRequestDTO requestDTO
     ) {
-        log.debug("Request to filter MCP systems: {}", filters);
-        List<MCPSystem> systems = mcpSystemService.filter(filters);
+        log.debug("Request to filter MCP systems: {}", requestDTO);
+        List<MCPSystem> systems = mcpSystemService.filter(requestDTO.getSearchString(), requestDTO.getFilters());
         List<MCPSystemResponseDTO> dtos = mcpSystemMapper.toResponseDtos(systems);
         return ResponseEntity.ok(dtos);
     }
@@ -120,9 +108,7 @@ public class MCPSystemController {
     @PostMapping(value = "/export", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     @Operation(description = "Export MCP services")
     public ResponseEntity<Object> export(
-            @RequestParam(required = false)
-            @Parameter(description = "List of system IDs")
-            List<String> ids
+            @RequestBody List<String> ids
     ) {
         byte[] data = mcpSystemImportExportService.export(ids);
         if (isNull(data)) {

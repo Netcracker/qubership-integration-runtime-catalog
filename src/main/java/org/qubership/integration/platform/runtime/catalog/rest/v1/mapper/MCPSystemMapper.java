@@ -1,9 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 
-import org.mapstruct.CollectionMappingStrategy;
-import org.mapstruct.Mapper;
-import org.mapstruct.MappingTarget;
-import org.mapstruct.NullValuePropertyMappingStrategy;
+import org.mapstruct.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystemLabel;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemLabelDTO;
@@ -26,7 +23,10 @@ public interface MCPSystemMapper {
 
     MCPSystemResponseDTO toResponseDto(MCPSystem system);
 
-    MCPSystem update(@MappingTarget MCPSystem contextSystem, MCPSystemUpdateRequestDTO request);
+    @Mapping(target = "labels", ignore = true)
+    MCPSystem updateWithoutLabels(@MappingTarget MCPSystem contextSystem, MCPSystemUpdateRequestDTO request);
+
+    MCPSystemLabel updateLabel(@MappingTarget MCPSystemLabel label, SystemLabelDTO labelDTO);
 
     MCPSystemLabel asLabel(SystemLabelDTO labelDTO);
 

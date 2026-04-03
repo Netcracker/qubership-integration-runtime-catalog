@@ -3,6 +3,7 @@ package org.qubership.integration.platform.runtime.catalog.service.filter;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import org.apache.poi.util.StringUtil;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterFeature;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
@@ -15,6 +16,8 @@ import java.util.*;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
+import static java.util.Objects.isNull;
+
 @Component
 public class MCPSystemFilterSpecificationBuilder {
     private final FilterConditionPredicateBuilderFactory filterConditionPredicateBuilderFactory;
@@ -26,13 +29,33 @@ public class MCPSystemFilterSpecificationBuilder {
         this.filterConditionPredicateBuilderFactory = filterConditionPredicateBuilderFactory;
     }
 
-    public Specification<MCPSystem> buildSearch(String searchString) {
-        Collection<FilterRequestDTO> filters = buildFiltersFromSearchString(searchString);
-        return build(filters, CriteriaBuilder::or, true);
+    public Specification<MCPSystem> buildSearchAndFilters(String searchString, Collection<FilterRequestDTO> filters) {
+        return (root, query, criteriaBuilder) -> {
+            Predicate searchPredicate = StringUtil.isBlank(searchString)
+                    ? criteriaBuilder.conjunction()
+                    : buildSearch(searchString, root, criteriaBuilder);
+            Predicate filterPredicate = isNull(filters) || filters.isEmpty()
+                    ? criteriaBuilder.conjunction()
+                    : buildFilters(filters, root, criteriaBuilder);
+            return criteriaBuilder.and(searchPredicate, filterPredicate);
+        };
     }
 
-    public Specification<MCPSystem> buildFilters(Collection<FilterRequestDTO> filters) {
-        return build(filters, CriteriaBuilder::and, false);
+    private Predicate buildSearch(
+            String searchString,
+            Root<MCPSystem> root,
+            CriteriaBuilder criteriaBuilder
+    ) {
+        Collection<FilterRequestDTO> filters = buildFiltersFromSearchString(searchString);
+        return build(filters, CriteriaBuilder::or, root, criteriaBuilder);
+    }
+
+    private Predicate buildFilters(
+            Collection<FilterRequestDTO> filters,
+            Root<MCPSystem> root,
+            CriteriaBuilder criteriaBuilder
+    ) {
+        return build(filters, CriteriaBuilder::and, root, criteriaBuilder);
     }
 
     private List<FilterRequestDTO> buildFiltersFromSearchString(String searchString) {
@@ -52,17 +75,16 @@ public class MCPSystemFilterSpecificationBuilder {
         ).toList();
     }
 
-    public Specification<MCPSystem> build(
+    public Predicate build(
             Collection<FilterRequestDTO> filters,
             BiFunction<CriteriaBuilder, Predicate[], Predicate> predicateAccumulator,
-            boolean searchMode
+            Root<MCPSystem> root,
+            CriteriaBuilder criteriaBuilder
     ) {
-        return (root, query, criteriaBuilder) -> {
-            Predicate[] predicates = filters.stream()
-                    .map(filter -> buildPredicate(root, criteriaBuilder, filter))
-                    .toArray(Predicate[]::new);
-            return predicateAccumulator.apply(criteriaBuilder, predicates);
-        };
+        Predicate[] predicates = filters.stream()
+                .map(filter -> buildPredicate(root, criteriaBuilder, filter))
+                .toArray(Predicate[]::new);
+        return predicateAccumulator.apply(criteriaBuilder, predicates);
     }
 
     private Predicate buildPredicate(
@@ -70,8 +92,6 @@ public class MCPSystemFilterSpecificationBuilder {
             CriteriaBuilder criteriaBuilder,
             FilterRequestDTO filter
     ) {
-        boolean isNegativeElementFilter = FilterCondition.IS_NOT.equals(filter.getCondition())
-                || FilterCondition.NOT_IN.equals(filter.getCondition());
         var conditionPredicateBuilder = filterConditionPredicateBuilderFactory
                 .<String>getPredicateBuilder(criteriaBuilder, filter.getCondition());
         String value = filter.getValue();

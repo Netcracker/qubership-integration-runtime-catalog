@@ -8,10 +8,11 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystemLabel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.mcp.MCPSystemRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemSearchRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemLabelDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemCreateRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemUpdateRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.MCPSystemMapper;
@@ -22,7 +23,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -51,8 +55,8 @@ public class MCPSystemService {
     public List<MCPSystem> findAll(boolean withChains) {
         List<MCPSystem> systems = mcpSystemRepository.findAll();
         return withChains
-            ? enrichWithChains(systems)
-            : systems;
+                ? enrichWithChains(systems)
+                : systems;
     }
 
     public List<MCPSystem> findAll() {
@@ -88,8 +92,22 @@ public class MCPSystemService {
             throw new EntityNotFoundException(String.format("MCP system with id %s not found", id));
         }
         MCPSystem system = mcpSystem.get();
-        system = mcpSystemMapper.update(system, request);
-        return update(system);
+        MCPSystem updatedSystem = mcpSystemMapper.updateWithoutLabels(system, request);
+
+        Map<String, SystemLabelDTO> labelMap = request.getLabels().stream()
+                .collect(Collectors.toMap(SystemLabelDTO::getName, Function.identity()));
+
+        updatedSystem.getLabels().removeIf(label -> !labelMap.containsKey(label.getName()));
+        updatedSystem.getLabels().forEach(label -> {
+            SystemLabelDTO labelDTO = labelMap.remove(label.getName());
+            mcpSystemMapper.updateLabel(label, labelDTO);
+        });
+        updatedSystem.getLabels().addAll(labelMap.values().stream().map(l -> {
+            MCPSystemLabel label = mcpSystemMapper.asLabel(l);
+            label.setSystem(updatedSystem);
+            return label;
+        }).toList());
+        return update(updatedSystem);
     }
 
     public MCPSystem update(MCPSystem system) {
@@ -108,17 +126,8 @@ public class MCPSystemService {
         });
     }
 
-    public List<MCPSystem> searchSystems(SystemSearchRequestDTO request) {
-        return searchSystems(request.getSearchCondition());
-    }
-
-    public List<MCPSystem> searchSystems(String searchCondition) {
-        Specification<MCPSystem> specification = mcpSystemFilterSpecificationBuilder.buildSearch(searchCondition);
-        return enrichWithChains(mcpSystemRepository.findAll(specification));
-    }
-
-    public List<MCPSystem> filter(List<FilterRequestDTO> filters) {
-        Specification<MCPSystem> specification = mcpSystemFilterSpecificationBuilder.buildFilters(filters);
+    public List<MCPSystem> filter(String searchString, List<FilterRequestDTO> filters) {
+        Specification<MCPSystem> specification = mcpSystemFilterSpecificationBuilder.buildSearchAndFilters(searchString, filters);
         return enrichWithChains(mcpSystemRepository.findAll(specification));
     }
 
