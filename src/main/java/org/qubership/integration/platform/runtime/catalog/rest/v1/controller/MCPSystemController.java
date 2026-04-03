@@ -63,6 +63,18 @@ public class MCPSystemController {
         return ResponseEntity.ok(dtos);
     }
 
+    @GetMapping("/{id}")
+    @Operation(description = "Get MCP system by ID")
+    public ResponseEntity<MCPSystemResponseDTO> getById(
+            @PathVariable String id
+    ) {
+        log.debug("Request to get MCP system by ID: {}", id);
+        return mcpSystemService.findById(id).map(system -> {
+            MCPSystemResponseDTO dto = mcpSystemMapper.toResponseDto(system);
+            return ResponseEntity.ok(dto);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
     @PostMapping
     @Operation(description = "Create MCP system")
     public ResponseEntity<MCPSystemResponseDTO> create(
