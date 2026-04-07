@@ -128,11 +128,6 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
     public ChainExternalMapperEntity toExternalEntity(@NonNull Chain chain) {
         ChainElementsExternalMapperEntity elementsExternalMapperEntity = chainElementsMapper.toExternalEntity(chain.getElements());
         List<DeploymentExternalEntity> deployments = extractChainDeployments(chain);
-        List<String> labels = (chain.getLabels() == null ? Collections.<ChainLabel>emptySet() : chain.getLabels())
-                .stream()
-                .filter(label -> !label.isTechnical())
-                .map(ChainLabel::getName)
-                .toList();
 
         ChainExternalEntity chainExternalEntity = ChainExternalEntity.builder()
                 .schema(chainSchemaUri)
@@ -143,7 +138,8 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                         .businessDescription(chain.getBusinessDescription())
                         .assumptions(chain.getAssumptions())
                         .outOfScope(chain.getOutOfScope())
-                        .labels(labels)
+                        .labels(chain.getLabels().stream().filter(label -> !label.isTechnical())
+                                .map(ChainLabel::getName).toList())
                         .folder(createFolderExternalEntity(chain))
                         .maskedFields(createMaskedFieldExternalEntities(chain.getMaskedFields()))
                         .defaultSwimlaneId(
