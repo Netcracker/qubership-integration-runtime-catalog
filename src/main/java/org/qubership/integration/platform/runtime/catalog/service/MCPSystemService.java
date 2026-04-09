@@ -161,6 +161,6 @@ public class MCPSystemService {
     }
 
     private List<Chain> findChainsByMcpSystemId(String mcpSystemId) {
-        return chainRepository.findChainsWithElementPropertyValue(CamelNames.MCP_SERVICE_ID, mcpSystemId);
+        return chainRepository.findChainsWithElementPropertyContainsValue(CamelNames.MCP_SERVICE_IDS, mcpSystemId);
     }
 }

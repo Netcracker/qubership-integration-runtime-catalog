@@ -129,7 +129,7 @@ public final class CamelNames {
     public static final String CHAIN_CALL_ELEMENT_ID = "elementId";
     public static final String REUSE_ESTABLISHED_CONN = "reuseEstablishedConnection";
 
-    public static final String MCP_SERVICE_ID = "mcpServiceId";
+    public static final String MCP_SERVICE_IDS = "mcpServiceIds";
 
     private CamelNames() {
     }
