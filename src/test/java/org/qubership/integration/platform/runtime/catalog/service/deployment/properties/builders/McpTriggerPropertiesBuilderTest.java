@@ -70,7 +70,7 @@ class McpTriggerPropertiesBuilderTest {
         Map<String, String> result = builder.build(element);
 
         assertThat(result.keySet(), containsInAnyOrder(
-                "mcpServiceId", "name", "title", "description",
+                "mcpServiceIds", "name", "title", "description",
                 "inputSchema", "outputSchema", "readOnly", "destructive",
                 "idempotent", "openWorld", "requiresLocal"
         ));
@@ -80,7 +80,7 @@ class McpTriggerPropertiesBuilderTest {
     @DisplayName("build maps element properties to string values")
     void buildWithAllPropertiesMapsCorrectly() {
         Map<String, Object> properties = new HashMap<>();
-        properties.put("mcpServiceId", "service-123");
+        properties.put("mcpServiceIds", "service-123");
         properties.put("name", "my-tool");
         properties.put("title", "My Tool");
         properties.put("description", "Does something");
@@ -100,7 +100,7 @@ class McpTriggerPropertiesBuilderTest {
         Map<String, String> result = builder.build(element);
 
         assertThat(result, allOf(
-                hasEntry("mcpServiceId", "service-123"),
+                hasEntry("mcpServiceIds", "service-123"),
                 hasEntry("name", "my-tool"),
                 hasEntry("title", "My Tool"),
                 hasEntry("description", "Does something"),
@@ -144,7 +144,7 @@ class McpTriggerPropertiesBuilderTest {
     @DisplayName("build converts non-string property values using toString")
     void buildWithIntegerPropertyValueConvertsToString() {
         Map<String, Object> properties = new HashMap<>();
-        properties.put("mcpServiceId", 42);
+        properties.put("mcpServiceIds", 42);
 
         ChainElement element = ChainElement.builder()
                 .type("mcp-trigger")
@@ -153,7 +153,7 @@ class McpTriggerPropertiesBuilderTest {
 
         Map<String, String> result = builder.build(element);
 
-        assertThat(result, hasEntry("mcpServiceId", "42"));
+        assertThat(result, hasEntry("mcpServiceIds", "42"));
     }
 
     @Test

@@ -23,7 +23,7 @@ public class McpTriggerPropertiesBuilder implements ElementPropertiesBuilder {
     @Override
     public Map<String, String> build(ChainElement element) {
         return Stream.of(
-                "mcpServiceId",
+                "mcpServiceIds",
                 "name",
                 "title",
                 "description",
