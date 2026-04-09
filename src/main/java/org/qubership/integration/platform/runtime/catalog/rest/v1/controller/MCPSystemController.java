@@ -9,10 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemCreateRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemFilterRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemResponseDTO;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemUpdateRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.MCPSystemMapper;
 import org.qubership.integration.platform.runtime.catalog.service.MCPSystemService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.MCPSystemImportExportService;
@@ -78,7 +77,7 @@ public class MCPSystemController {
     @PostMapping
     @Operation(description = "Create MCP system")
     public ResponseEntity<MCPSystemResponseDTO> create(
-            @RequestBody MCPSystemCreateRequestDTO requestDTO
+            @RequestBody MCPSystemRequestDTO requestDTO
     ) {
         log.debug("Request to create MCP system: {}", requestDTO);
         MCPSystem system = mcpSystemService.create(requestDTO);
@@ -90,7 +89,7 @@ public class MCPSystemController {
     @Operation(description = "Update MCP system")
     public ResponseEntity<MCPSystemResponseDTO> update(
             @PathVariable String id,
-            @RequestBody MCPSystemUpdateRequestDTO requestDTO
+            @RequestBody MCPSystemRequestDTO requestDTO
     ) {
         log.debug("Request to update MCP system: {}", requestDTO);
         MCPSystem system = mcpSystemService.update(id, requestDTO);

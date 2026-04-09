@@ -12,8 +12,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.mcp.MCPSystemRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemCreateRequestDTO;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemUpdateRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.mcp.MCPSystemRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.MCPSystemMapper;
 import org.qubership.integration.platform.runtime.catalog.service.filter.MCPSystemFilterSpecificationBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,7 +70,7 @@ public class MCPSystemService {
         return mcpSystemRepository.findById(id);
     }
 
-    public MCPSystem create(MCPSystemCreateRequestDTO request) {
+    public MCPSystem create(MCPSystemRequestDTO request) {
         MCPSystem mcpSystem = new MCPSystem();
         mcpSystem.setName(request.getName());
         mcpSystem.setDescription(request.getDescription());
@@ -86,7 +85,7 @@ public class MCPSystemService {
         return system;
     }
 
-    public MCPSystem update(String id, MCPSystemUpdateRequestDTO request) {
+    public MCPSystem update(String id, MCPSystemRequestDTO request) {
         Optional<MCPSystem> mcpSystem = mcpSystemRepository.findById(id);
         if (mcpSystem.isEmpty()) {
             throw new EntityNotFoundException(String.format("MCP system with id %s not found", id));

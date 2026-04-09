@@ -7,8 +7,8 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.Sys
 import java.util.List;
 
 @Data
-@Schema(description = "Update MCP Service request object")
-public class MCPSystemUpdateRequestDTO {
+@Schema(description = "MCP Service request object")
+public class MCPSystemRequestDTO {
     @Schema(description = "Name")
     private String name;
 
