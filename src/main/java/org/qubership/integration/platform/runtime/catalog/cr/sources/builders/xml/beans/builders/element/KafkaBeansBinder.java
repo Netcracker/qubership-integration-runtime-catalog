@@ -4,21 +4,21 @@ import org.apache.commons.lang3.StringUtils;
 import org.codehaus.stax2.XMLStreamWriter2;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.ElementBeansBuilder;
-import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.builders.element.helpers.MaasClassifierGetterHelper;
+import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.builders.element.helpers.MaasClassifierHelper;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
-import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 import java.util.Set;
+import javax.xml.stream.XMLStreamException;
 
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.OPERATION_PROTOCOL_TYPE_PROP;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.*;
 
 @Component
 public class KafkaBeansBinder implements ElementBeansBuilder {
@@ -29,13 +29,13 @@ public class KafkaBeansBinder implements ElementBeansBuilder {
             CamelNames.KAFKA_TRIGGER_2_COMPONENT
     );
 
-    private final MaasClassifierGetterHelper maasClassifierGetterHelper;
+    private final MaasClassifierHelper maasClassifierHelper;
 
     @Autowired
     public KafkaBeansBinder(
-            MaasClassifierGetterHelper maasClassifierGetterHelper
+            MaasClassifierHelper maasClassifierHelper
     ) {
-        this.maasClassifierGetterHelper = maasClassifierGetterHelper;
+        this.maasClassifierHelper = maasClassifierHelper;
     }
 
     @Override
@@ -53,12 +53,17 @@ public class KafkaBeansBinder implements ElementBeansBuilder {
     public void build(XMLStreamWriter2 streamWriter, ChainElement element, SourceBuilderContext context) throws Exception {
         addKafkaClientFactoryBean(streamWriter, element.getId(), element);
         addKafkaClientFactoryBean(streamWriter, element.getId() + "-v2", element);
+
+        String maasClassifier = getMaasClassifier(element);
+        if (StringUtils.isNotBlank(maasClassifier)) {
+            addMaasClassifierInfoBean(streamWriter, element);
+        }
     }
 
     private void addKafkaClientFactoryBean(XMLStreamWriter2 streamWriter, String name, ChainElement element) throws Exception {
         streamWriter.writeStartElement("bean");
         streamWriter.writeAttribute("name", name);
-        streamWriter.writeAttribute("type", "org.apache.camel.component.kafka.KafkaClientFactory");
+        streamWriter.writeAttribute("type", "org.qubership.integration.platform.engine.camel.components.kafka.factory.KafkaBGClientFactory");
         streamWriter.writeAttribute("builderClass", "org.qubership.integration.platform.engine.util.builders.KafkaClientFactoryBuilder");
         streamWriter.writeAttribute("builderMethod", "build");
 
@@ -93,18 +98,42 @@ public class KafkaBeansBinder implements ElementBeansBuilder {
         streamWriter.writeEndElement();
     }
 
-    private String getMaasClassifier(ChainElement element) {
-        return KAFKA_ELEMENTS.contains(element.getType())
-                ? getMaasClassifierForAmpqElement(element)
-                : maasClassifierGetterHelper.getMaasClassifierForServiceCallOrAsyncApiElement(element);
+    private void addMaasClassifierInfoBean(XMLStreamWriter2 streamWriter, ChainElement element) throws XMLStreamException {
+        String maasClassifier = getMaasClassifier(element);
+
+        String namespace;
+        String tenantId;
+        String tenantEnabled;
+
+        if (KAFKA_ELEMENTS.contains(element.getType())) {
+            namespace = Optional.ofNullable(element.getProperties().get(MAAS_CLASSIFIER_NAMESPACE))
+                    .map(Object::toString).orElse(null);
+            tenantId = Optional.ofNullable(element.getProperties().get(MAAS_CLASSIFIER_TENANT_ID))
+                    .map(Object::toString).orElse(null);
+            tenantEnabled = Optional.ofNullable(element.getProperties().get(MAAS_CLASSIFIER_TENANT_ENABLED))
+                    .map(Object::toString).orElse("false");
+        } else { // Async API Trigger and Service Call elements
+            namespace = String.valueOf(ElementUtils.extractOperationAsyncProperties(element.getProperties())
+                    .get(CamelNames.MAAS_CLASSIFIER_NAMESPACE_PROP));
+            tenantId = String.valueOf(ElementUtils.extractOperationAsyncProperties(element.getProperties())
+                    .get(CamelNames.MAAS_CLASSIFIER_TENANT_ID_CAMEL_NAME));
+            tenantEnabled = String.valueOf(ElementUtils.extractOperationAsyncProperties(element.getProperties())
+                    .get(CamelNames.MAAS_CLASSIFIER_TENANT_ENABLED_CAMEL_NAME));
+        }
+        maasClassifierHelper.addMaasClassifierInfoBean(
+                streamWriter,
+                element,
+                OPERATION_PROTOCOL_TYPE_AMQP,
+                maasClassifier,
+                namespace,
+                tenantId,
+                tenantEnabled
+        );
     }
 
-    private static String getMaasClassifierForAmpqElement(ChainElement element) {
-        String sourceType = element.getPropertyAsString(CamelOptions.CONNECTION_SOURCE_TYPE_PROP);
-        return ConnectionSourceType.MAAS.toString().equals(sourceType)
-                || EnvironmentSourceType.MAAS_BY_CLASSIFIER.toString().equals(sourceType)
-                ? Optional.ofNullable(element.getPropertyAsString(CamelOptions.MAAS_TOPICS_CLASSIFIER_NAME_PROP))
-                .orElse("")
-                : "";
+    private String getMaasClassifier(ChainElement element) {
+        return KAFKA_ELEMENTS.contains(element.getType())
+                ? maasClassifierHelper.getMaasClassifierForKafkaElement(element)
+                : maasClassifierHelper.getMaasClassifierForServiceCallOrAsyncApiElement(element);
     }
 }

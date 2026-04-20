@@ -72,6 +72,11 @@ public class ServiceCallBeansBuilder implements ElementBeansBuilder {
                 String activeEnvironmentId = system.getActiveEnvironmentId();
                 if (StringUtils.isNotEmpty(activeEnvironmentId)) {
                     Environment env = environmentService.getByIdForSystem(systemId, activeEnvironmentId);
+
+                    streamWriter.writeEmptyElement("property");
+                    streamWriter.writeAttribute("key", "externalServiceAddress");
+                    streamWriter.writeAttribute("value", env.getAddress());
+
                     streamWriter.writeEmptyElement("property");
                     streamWriter.writeAttribute("key", "externalServiceEnvironmentName");
                     streamWriter.writeAttribute("value", env.getName());
