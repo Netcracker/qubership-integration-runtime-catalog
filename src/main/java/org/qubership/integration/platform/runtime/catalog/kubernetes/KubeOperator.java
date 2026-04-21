@@ -313,7 +313,7 @@ public class KubeOperator {
             V1ServiceMonitorList listObject = fromRawObject(rawListObj, new TypeToken<V1ServiceMonitorList>() {}.getType());
             return listObject.getItems();
         } catch (ApiException exception) {
-            throw new KubeApiException("Failed to get services.", exception);
+            throw new KubeApiException("Failed to get service monitors.", exception);
         }
     }
 
