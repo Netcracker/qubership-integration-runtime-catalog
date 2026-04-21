@@ -23,6 +23,7 @@ import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -58,6 +59,7 @@ public class CustomResourceService {
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationsConfigurationConfigMapNamingStrategy;
     private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
+    private final boolean monitoringEnabled;
 
     @Autowired
     public CustomResourceService(
@@ -66,12 +68,14 @@ public class CustomResourceService {
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
             @Qualifier("integrationsConfigurationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationsConfigurationConfigMapNamingStrategy,
-            IntegrationConfigurationSerdes integrationConfigurationSerdes
+            IntegrationConfigurationSerdes integrationConfigurationSerdes,
+            @Value("${qip.cr.build.monitoring.enabled:false}") boolean monitoringEnabled
     ) {
         this.kubeOperator = kubeOperator;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
         this.integrationsConfigurationConfigMapNamingStrategy = integrationsConfigurationConfigMapNamingStrategy;
         this.integrationConfigurationSerdes = integrationConfigurationSerdes;
+        this.monitoringEnabled = monitoringEnabled;
     }
 
     @PostConstruct
@@ -167,10 +171,12 @@ public class CustomResourceService {
                 .getServicesByLabel(CAMEL_K_INTEGRATION_LABEL, integrationName)
                 .stream()
                 .findFirst();
-        Optional<V1ServiceMonitor> serviceMonitor = kubeOperator
-                .getServiceMonitorsByLabel(CAMEL_K_INTEGRATION_LABEL, integrationName)
-                .stream()
-                .findFirst();
+        Optional<V1ServiceMonitor> serviceMonitor = monitoringEnabled
+                ? kubeOperator
+                    .getServiceMonitorsByLabel(CAMEL_K_INTEGRATION_LABEL, integrationName)
+                    .stream()
+                    .findFirst()
+                : Optional.empty();
         List<V1ConfigMap> configMaps = kubeOperator.getConfigMapsByLabel(CAMEL_K_INTEGRATION_LABEL, integrationName);
         String cfgName = getIntegrationCfgConfigMapName(name);
         Optional<V1ConfigMap> integrationsConfiguration = configMaps.stream()
