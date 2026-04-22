@@ -32,6 +32,8 @@ import org.qubership.integration.platform.runtime.catalog.model.deployment.engin
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentUpdate;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentsUpdate;
+import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
+import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
 import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -230,7 +232,7 @@ public class DeploymentService {
     }
 
     @DeploymentModification
-    public BulkDeploymentResponse deploySnapshot(Snapshot snapshot, Collection<String> domains) {
+    public List<BulkDeploymentResponse> deploySnapshot(Snapshot snapshot, Collection<String> domains) {
         List<Deployment> deps = domains.stream().map(domain -> {
             Deployment dep = new Deployment();
             dep.setDomain(domain);
@@ -242,20 +244,29 @@ public class DeploymentService {
         String chainName = chain.getName();
 
         try {
-            createAll(deps, chainId, snapshot);
-            return BulkDeploymentResponse.builder()
-                    .chainId(chainId)
-                    .chainName(chainName)
-                    .status(BulkDeploymentStatus.CREATED)
-                    .build();
+            return createAll(deps, chainId, snapshot).stream()
+                    .map(deployment -> BulkDeploymentResponse.builder()
+                            .chainId(chainId)
+                            .chainName(chainName)
+                            .status(BulkDeploymentStatus.CREATED)
+                            .domain(EngineDomain.builder()
+                                    .name(deployment.getDomain())
+                                    .type(DomainType.NATIVE)
+                                    .build())
+                            .build())
+                    .toList();
         } catch (Exception e) {
             log.error("Error creating deployment for chain: {}, {}", snapshot.getChain().getId(), e.getMessage());
-            return BulkDeploymentResponse.builder()
+            return domains.stream().map(name -> BulkDeploymentResponse.builder()
                     .chainId(chainId)
                     .chainName(chainName)
                     .status(BulkDeploymentStatus.FAILED_DEPLOY)
                     .errorMessage(e.getMessage())
-                    .build();
+                    .domain(EngineDomain.builder()
+                            .name(name)
+                            .type(DomainType.NATIVE)
+                            .build())
+                    .build()).toList();
         }
     }
 
@@ -296,6 +307,7 @@ public class DeploymentService {
                 .values()
                 .stream()
                 .map(snapshot -> deploySnapshot(snapshot, request.getDomains()))
+                .flatMap(Collection::stream)
                 .peek(result -> failed.compareAndSet(
                         false, BulkDeploymentStatus.FAILED_DEPLOY.equals(result.getStatus())))
                 .forEach(statuses::add);

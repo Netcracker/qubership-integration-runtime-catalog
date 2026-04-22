@@ -16,6 +16,8 @@ import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDo
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
 import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
 import org.qubership.integration.platform.runtime.catalog.service.EngineService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +29,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
 
 @Slf4j
 @RestController
@@ -72,16 +74,37 @@ public class CustomResourceController {
     @PostMapping("/deploy-chains")
     @Operation(description = "Deploy with creation of snapshots as Camel-K Integration resource")
     @Transactional
-    public ResponseEntity<Void> deployChains(
+    public ResponseEntity<List<BulkDeploymentResponse>> deployChains(
             @Valid @RequestBody DeployWithSnapshotCreationRequest request
     ) {
+        List<BulkDeploymentResponse> result = new ArrayList<>();
         Collection<Chain> chains = chainRepository.findAllById(request.getChainIds()).stream()
-                .filter(chain -> isNull(chain.getOverriddenByChainId()))
+                .filter(chain -> {
+                    boolean isOverridden = nonNull(chain.getOverriddenByChainId());
+                    if (isOverridden) {
+                        result.add(BulkDeploymentResponse.builder()
+                                .chainId(chain.getId())
+                                .chainName(chain.getName())
+                                .status(BulkDeploymentStatus.IGNORED)
+                                .build());
+                    }
+                    return !isOverridden;
+                })
                 .toList();
         Collection<Snapshot> snapshots = deploymentService.provideSnapshots(
                 chains.stream().map(Chain::getId).toList(),
                 request.getSnapshotAction(),
-                (chainId, msg) -> {})
+                (chainId, msg) -> result.add(BulkDeploymentResponse.builder()
+                                .chainName(chains.stream()
+                                        .filter(chain -> chain.getId().equals(chainId))
+                                        .findFirst()
+                                        .map(Chain::getName)
+                                        .orElse(null)
+                                )
+                                .chainId(chainId)
+                                .status(BulkDeploymentStatus.FAILED_SNAPSHOT)
+                                .errorMessage(msg)
+                        .build()))
                 .values();
 
         Map<String, DomainType> domainTypeMap = engineService.getDomains().stream()
@@ -94,19 +117,49 @@ public class CustomResourceController {
                 .collect(Collectors.groupingBy(
                         name -> domainTypeMap.getOrDefault(name, DomainType.MICRO)));
 
-        snapshots.forEach(snapshot -> deploymentService.deploySnapshot(
-                snapshot,
-                domainByType.getOrDefault(DomainType.NATIVE, Collections.emptyList())));
+        snapshots.stream()
+                .map(snapshot -> deploymentService.deploySnapshot(
+                    snapshot,
+                    domainByType.getOrDefault(DomainType.NATIVE, Collections.emptyList())))
+                .flatMap(Collection::stream)
+                .forEach(result::add);
 
-        domainByType.getOrDefault(DomainType.MICRO, Collections.emptyList()).forEach(name -> {
-            doDeployResource(ResourceDeployRequest.builder()
-                    .name(name)
-                    .mode(request.getMode())
-                    .snapshotIds(snapshots.stream().map(Snapshot::getId).toList())
-                    .build());
-        });
+        domainByType.getOrDefault(DomainType.MICRO, Collections.emptyList()).stream()
+                .map(name -> {
+                    try {
+                        doDeployResource(ResourceDeployRequest.builder()
+                                .name(name)
+                                .mode(request.getMode())
+                                .snapshotIds(snapshots.stream().map(Snapshot::getId).toList())
+                                .build());
+                        return snapshots.stream()
+                                .map(snapshot -> BulkDeploymentResponse.builder()
+                                        .chainId(snapshot.getChain().getId())
+                                        .chainName(snapshot.getChain().getName())
+                                        .status(BulkDeploymentStatus.CREATED)
+                                        .domain(EngineDomain.builder()
+                                                .name(name)
+                                                .type(DomainType.MICRO)
+                                                .build())
+                                        .build())
+                                .toList();
+                    } catch (Exception e) {
+                        return snapshots.stream()
+                                .map(snapshot -> BulkDeploymentResponse.builder()
+                                        .chainId(snapshot.getChain().getId())
+                                        .chainName(snapshot.getChain().getName())
+                                        .status(BulkDeploymentStatus.FAILED_DEPLOY)
+                                        .errorMessage(e.getMessage())
+                                        .domain(EngineDomain.builder()
+                                                .name(name)
+                                                .type(DomainType.MICRO)
+                                                .build())
+                                        .build())
+                                .toList();
+                    }
+                }).forEach(result::addAll);
 
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/deploy")
