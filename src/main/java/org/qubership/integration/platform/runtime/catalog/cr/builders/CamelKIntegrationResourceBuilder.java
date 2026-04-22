@@ -27,17 +27,6 @@ import java.util.stream.IntStream;
 @Component
 public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Snapshot>> {
     private static final String QIP_CHAINS_CONFIGURATION_PATH = "/etc/integrations-config.yaml";
-
-    private static final Map<String, String> DEFAULT_ENVIRONMENT = Map.of(
-            "CONSUL_URL", "{{ .Values.consul.url }}",
-            "CONSUL_ADMIN_TOKEN", "{{ .Values.consul.adminToken }}",
-            "OPENSEARCH_HOST", "{{ .Values.opensearch.host }}",
-            "OPENSEARCH_PORT", "{{ .Values.opensearch.port }}",
-            "POSTGRES_URL", "{{ .Values.postgres.url }}",
-            "POSTGRES_USER", "{{ .Values.postgres.user }}",
-            "POSTGRES_PASSWORD", "{{ .Values.postgres.password }}",
-            "MONITORING_ENABLED", "{{ .Values.monitoring.enabled }}"
-    );
     private static final String TEMPLATE_NAME = "integration";
 
     @Data
@@ -185,8 +174,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
     }
 
     private Collection<String> buildEnvironmentVars(ResourceBuildContext<List<Snapshot>> context) {
-        Map<String, String> environment = new HashMap<>(DEFAULT_ENVIRONMENT);
-        environment.putAll(context.getBuildInfo().getOptions().getEnvironment());
+        Map<String, String> environment = new HashMap<>(context.getBuildInfo().getOptions().getEnvironment());
         environment.put("CLOUD_SERVICE_NAME", serviceNamingStrategy.getName(context));
         if (!context.getBuildInfo().getOptions().getIntegrations().isCamelKSourcesUtilized()) {
             String location = context.getBuildInfo().getOptions().getIntegrations().getConfigurationLocation();

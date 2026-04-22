@@ -5,6 +5,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -28,6 +29,9 @@ public class CustomResourceOptionsProvider {
     @Value("${qip.cr.build.namespace:default")
     private String namespace;
 
+    @Value("#{${qip.cr.build.environment:{}}}")
+    private Map<String, String> environment;
+
     public ResourceBuildOptions getOptions(ResourceDeployRequest request) {
         return ResourceBuildOptions.builder()
                 .name(request.getName())
@@ -43,18 +47,14 @@ public class CustomResourceOptionsProvider {
                 .integrations(IntegrationsConfigurationOptions.builder()
                         .camelKSourcesUtilized(false)
                         .build())
-                .environment(Map.of(
-                        // FIXME
-                        "CONSUL_URL", "configmap:qip-env/CONSUL_URL",
-                        "CONSUL_ADMIN_TOKEN", "configmap:qip-env/CONSUL_ADMIN_TOKEN",
-                        "OPENSEARCH_HOST", "configmap:qip-env/OPENSEARCH_HOST",
-                        "OPENSEARCH_PORT", "configmap:qip-env/OPENSEARCH_PORT",
-                        "POSTGRES_URL", "configmap:qip-engine-env/POSTGRES_URL",
-                        "POSTGRES_USER", "secret:qip-postgres-auth/username",
-                        "POSTGRES_PASSWORD", "secret:qip-postgres-auth/password",
-                        "MONITORING_ENABLED", Boolean.valueOf(monitoringEnabled).toString()
-                ))
+                .environment(getEnvironment())
                 .serviceAccount(serviceAccount)
                 .build();
+    }
+
+    private Map<String, String> getEnvironment() {
+        Map<String, String> result = new HashMap<>(environment);
+        result.put("MONITORING_ENABLED", Boolean.valueOf(monitoringEnabled).toString());
+        return result;
     }
 }
