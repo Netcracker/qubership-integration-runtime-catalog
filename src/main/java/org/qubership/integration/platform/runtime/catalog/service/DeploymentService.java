@@ -233,40 +233,55 @@ public class DeploymentService {
 
     @DeploymentModification
     public List<BulkDeploymentResponse> deploySnapshot(Snapshot snapshot, Collection<String> domains) {
-        List<Deployment> deps = domains.stream().map(domain -> {
-            Deployment dep = new Deployment();
-            dep.setDomain(domain);
-            return dep;
-        }).toList();
-
-        Chain chain = snapshot.getChain();
-        String chainId = chain.getId();
-        String chainName = chain.getName();
-
-        try {
-            return createAll(deps, chainId, snapshot).stream()
-                    .map(deployment -> BulkDeploymentResponse.builder()
-                            .chainId(chainId)
-                            .chainName(chainName)
-                            .status(BulkDeploymentStatus.CREATED)
-                            .domain(EngineDomain.builder()
-                                    .name(deployment.getDomain())
-                                    .type(DomainType.NATIVE)
-                                    .build())
-                            .build())
-                    .toList();
-        } catch (Exception e) {
-            log.error("Error creating deployment for chain: {}, {}", snapshot.getChain().getId(), e.getMessage());
+        if (domains.size() > 1 && !checkTriggersInBulkDeploy(snapshot)) {
+            Chain chain = snapshot.getChain();
+            String chainId = chain.getId();
+            String chainName = chain.getName();
             return domains.stream().map(name -> BulkDeploymentResponse.builder()
                     .chainId(chainId)
                     .chainName(chainName)
                     .status(BulkDeploymentStatus.FAILED_DEPLOY)
-                    .errorMessage(e.getMessage())
+                    .errorMessage("Found external or private triggers while deploying to multiple domains")
                     .domain(EngineDomain.builder()
                             .name(name)
                             .type(DomainType.NATIVE)
                             .build())
                     .build()).toList();
+        }
+
+        return domains.stream()
+                .map(name -> deploySnapshotToDomain(snapshot, name))
+                .toList();
+    }
+
+    @DeploymentModification
+    public BulkDeploymentResponse deploySnapshotToDomain(Snapshot snapshot, String domainName) {
+        Deployment deployment = new Deployment();
+        deployment.setDomain(domainName);
+
+        Chain chain = snapshot.getChain();
+        String chainId = chain.getId();
+        String chainName = chain.getName();
+
+        BulkDeploymentResponse.BulkDeploymentResponseBuilder responseBuilder = BulkDeploymentResponse.builder()
+                .chainId(chainId)
+                .chainName(chainName)
+                .domain(EngineDomain.builder()
+                        .name(deployment.getDomain())
+                        .type(DomainType.NATIVE)
+                        .build());
+
+        try {
+            create(deployment, chainId, snapshot);
+            return responseBuilder
+                    .status(BulkDeploymentStatus.CREATED)
+                    .build();
+        } catch (Exception e) {
+            log.error("Error creating deployment for chain: {}, {}", snapshot.getChain().getId(), e.getMessage());
+            return responseBuilder
+                    .status(BulkDeploymentStatus.FAILED_DEPLOY)
+                    .errorMessage(e.getMessage())
+                    .build();
         }
     }
 
@@ -278,28 +293,28 @@ public class DeploymentService {
         final Map<String, Chain> chains = (CollectionUtils.isEmpty(request.getChainIds())
                 ? chainFinderService.findAll()
                 : chainFinderService.findAllById(request.getChainIds())).stream()
-                    .filter(chain -> {
-                        if (chain.getOverriddenByChainId() != null) {
-                            statuses.add(BulkDeploymentResponse.builder()
-                                    .chainId(chain.getId())
-                                    .chainName(chain.getName())
-                                    .status(BulkDeploymentStatus.IGNORED)
-                                    .build());
-                            return false;
-                        }
-                        return true;
-                    })
+                .filter(chain -> {
+                    if (chain.getOverriddenByChainId() != null) {
+                        statuses.add(BulkDeploymentResponse.builder()
+                                .chainId(chain.getId())
+                                .chainName(chain.getName())
+                                .status(BulkDeploymentStatus.IGNORED)
+                                .build());
+                        return false;
+                    }
+                    return true;
+                })
                 .collect(Collectors.toMap(AbstractEntity::getId, Function.identity()));
 
         log.info("Bulk deploy for {} chains", chains.size());
 
         BiConsumer<String, String> errorHandler = (chainId, msg) -> {
             statuses.add(BulkDeploymentResponse.builder()
-                .chainId(chainId)
-                .chainName(chains.get(chainId).getName())
-                .status(BulkDeploymentStatus.FAILED_SNAPSHOT)
-                .errorMessage(msg)
-                .build());
+                    .chainId(chainId)
+                    .chainName(chains.get(chainId).getName())
+                    .status(BulkDeploymentStatus.FAILED_SNAPSHOT)
+                    .errorMessage(msg)
+                    .build());
             failed.set(true);
         };
 
@@ -425,15 +440,16 @@ public class DeploymentService {
     }
 
     private boolean checkTriggersInBulkDeploy(List<Deployment> deployments) {
-        if (deployments.size() > 1) {
-            String snapshotId = deployments.get(0).getSnapshot().getId();
-            List<ChainElement> triggers =
-                    elementRepository.findAllBySnapshotIdAndType(snapshotId, getHttpTriggerTypeName());
+        return deployments.size() < 2 || checkTriggersInBulkDeploy(deployments.get(0).getSnapshot());
+    }
 
-            return triggers.stream().noneMatch(trigger ->
-                    TriggerUtils.isExternalHttpTrigger(trigger) || TriggerUtils.isPrivateHttpTrigger(trigger));
-        }
-        return true;
+    private boolean checkTriggersInBulkDeploy(Snapshot snapshot) {
+        String snapshotId = snapshot.getId();
+        List<ChainElement> triggers =
+                elementRepository.findAllBySnapshotIdAndType(snapshotId, getHttpTriggerTypeName());
+
+        return triggers.stream().noneMatch(trigger ->
+                TriggerUtils.isExternalHttpTrigger(trigger) || TriggerUtils.isPrivateHttpTrigger(trigger));
     }
 
     private List<ElementRoute> mapHttpTriggerRoutes(Collection<ChainElement> listOfObjects) {
@@ -486,7 +502,7 @@ public class DeploymentService {
             deploymentRepository.deleteAllByChainId(chainId);
             deployments.forEach(deployment -> logDeploymentAction(deployment, deployment.getId(), deployment.getChain().getName(), LogOperation.DELETE));
         });
-     }
+    }
 
     @DeploymentModification
     public void deleteAllBySnapshotId(String snapshotId) throws DeploymentProcessingException {
