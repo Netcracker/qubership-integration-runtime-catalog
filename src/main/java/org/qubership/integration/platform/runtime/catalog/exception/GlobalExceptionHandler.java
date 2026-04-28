@@ -261,7 +261,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 ));
             }
         }
-        return sanitizedBadRequestResponse(GENERIC_DATA_INTEGRITY_ERROR_MESSAGE, exception);
+        return sanitizedBadRequestResponse(exception);
     }
 
     @ExceptionHandler(EmptyVariableFieldException.class)
@@ -316,10 +316,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .build();
     }
 
-    private ResponseEntity<ExceptionDTO> sanitizedBadRequestResponse(String message, Exception exception) {
-        log.warn("Request rejected: {}", message, exception);
+    private ResponseEntity<ExceptionDTO> sanitizedBadRequestResponse(Exception exception) {
+        log.warn("Data integrity violation occurred", exception);
         ExceptionDTO exceptionDTO = ExceptionDTO.builder()
-                .errorMessage(message)
+                .errorMessage(GENERIC_DATA_INTEGRITY_ERROR_MESSAGE)
                 .errorDate(new Timestamp(System.currentTimeMillis()).toString())
                 .build();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(exceptionDTO);
