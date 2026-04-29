@@ -120,7 +120,7 @@ public class CustomResourceController {
         snapshots.stream()
                 .map(snapshot -> deploymentService.deploySnapshot(
                     snapshot,
-                    domainByType.getOrDefault(DomainType.NATIVE, Collections.emptyList())))
+                    domainByType.getOrDefault(DomainType.CLASSIC, Collections.emptyList())))
                 .flatMap(Collection::stream)
                 .forEach(result::add);
 
