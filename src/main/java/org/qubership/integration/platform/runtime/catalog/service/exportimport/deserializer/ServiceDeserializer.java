@@ -164,7 +164,7 @@ public class ServiceDeserializer {
         };
     }
 
-    private static final List<String> LEGACY_SYSTEM_MODEL_FIELDS = List.of("systemModels", "specifications", "specs");
+    private static final List<String> LEGACY_SYSTEM_MODEL_FIELDS = List.of("systemModels");
 
     private void processLegacyService(
             IntegrationSystemDto integrationSystemDto,
