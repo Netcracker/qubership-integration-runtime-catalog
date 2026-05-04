@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
@@ -92,19 +93,24 @@ public class ServiceDeserializer {
                     Files.readString(serviceFile.toPath()),
                     importFileMigrations.stream().map(ImportFileMigration.class::cast).toList()
             );
-            IntegrationSystemDto integrationSystemDto = yamlMapper.readValue(serviceData, IntegrationSystemDto.class);
+            ObjectNode migratedServiceNode = (ObjectNode) yamlMapper.readTree(serviceData);
+            IntegrationSystemDto integrationSystemDto = yamlMapper.treeToValue(migratedServiceNode, IntegrationSystemDto.class);
             IntegrationSystem integrationSystem = integrationSystemDtoMapper.toInternalEntity(integrationSystemDto);
 
             Collection<File> files = listFiles(serviceDirectory);
 
-            Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_GROUP_FILE_PREFIX),
-                    getFilesData(files, SPECIFICATION_GROUP_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
-                    .forEach(node -> buildAndAddSpecificationGroup(node, versions, integrationSystem));
+            if (integrationSystemDto.getContent() != null && !integrationSystemDto.getContent().getSpecificationGroups().isEmpty()) {
+                processLegacyService(integrationSystemDto, integrationSystem, versions, migratedServiceNode, serviceDirectory);
+            } else {
+                Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_GROUP_FILE_PREFIX),
+                                getFilesData(files, SPECIFICATION_GROUP_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
+                        .forEach(node -> buildAndAddSpecificationGroup(node, versions, integrationSystem));
 
-            Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_FILE_PREFIX),
-                            getFilesData(files, SPECIFICATION_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
-                    .forEach(node ->
-                    buildAndAddSpecification(node, versions, integrationSystem.getSpecificationGroups(), serviceDirectory));
+                Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_FILE_PREFIX),
+                                getFilesData(files, SPECIFICATION_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
+                        .forEach(node ->
+                                buildAndAddSpecification(node, versions, integrationSystem.getSpecificationGroups(), serviceDirectory));
+            }
 
             return integrationSystem;
         } catch (ServiceImportException e) {
@@ -156,6 +162,80 @@ public class ServiceDeserializer {
                 throw new RuntimeException(exception);
             }
         };
+    }
+
+    private static final List<String> LEGACY_SYSTEM_MODEL_FIELDS = List.of("systemModels", "specifications", "specs");
+
+    private void processLegacyService(
+            IntegrationSystemDto integrationSystemDto,
+            IntegrationSystem integrationSystem,
+            Collection<Integer> versions,
+            ObjectNode migratedServiceNode,
+            File serviceDirectory
+    ) {
+        if (integrationSystemDto.getContent() == null) {
+            return;
+        }
+
+        List<SpecificationGroupDto> specGroups = integrationSystemDto.getContent().getSpecificationGroups();
+        if (specGroups == null || specGroups.isEmpty()) {
+            return;
+        }
+
+        for (SpecificationGroupDto group : specGroups) {
+            if (group.getContent() != null && group.getContent().getParentId() == null) {
+                group.getContent().setParentId(integrationSystem.getId());
+            }
+            ObjectNode node = yamlMapper.valueToTree(group);
+            buildAndAddSpecificationGroup(node, versions, integrationSystem);
+        }
+
+        JsonNode contentNode = migratedServiceNode.path("content");
+        if (!(contentNode instanceof ObjectNode)) {
+            return;
+        }
+        JsonNode rawGroupsNode = contentNode.get("specificationGroups");
+        if (!(rawGroupsNode instanceof ArrayNode rawGroups)) {
+            return;
+        }
+
+        for (JsonNode rawGroupNode : rawGroups) {
+            if (!(rawGroupNode instanceof ObjectNode rawGroup)) {
+                continue;
+            }
+            String groupId = rawGroup.path("id").asText(null);
+            if (groupId == null) {
+                continue;
+            }
+
+            for (String field : LEGACY_SYSTEM_MODEL_FIELDS) {
+                JsonNode modelsNode = rawGroup.path(field);
+                if (!(modelsNode instanceof ArrayNode models)) {
+                    continue;
+                }
+                for (JsonNode modelNode : models) {
+                    if (!(modelNode instanceof ObjectNode model)) {
+                        continue;
+                    }
+
+                    ensureLegacyModelParentId(model, groupId);
+                    buildAndAddSpecification(model, versions, integrationSystem.getSpecificationGroups(), serviceDirectory);
+                }
+            }
+        }
+    }
+
+    private static void ensureLegacyModelParentId(ObjectNode modelNode, String groupId) {
+        JsonNode contentNode = modelNode.get("content");
+        if (contentNode instanceof ObjectNode content) {
+            if (content.path("parentId").isMissingNode() || content.path("parentId").isNull()) {
+                content.put("parentId", groupId);
+            }
+        } else {
+            if (modelNode.path("parentId").isMissingNode() || modelNode.path("parentId").isNull()) {
+                modelNode.put("parentId", groupId);
+            }
+        }
     }
 
     private void buildAndAddSpecificationGroup(
