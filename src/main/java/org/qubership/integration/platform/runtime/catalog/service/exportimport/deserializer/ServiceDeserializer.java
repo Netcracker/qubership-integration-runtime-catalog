@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
@@ -27,6 +28,7 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.S
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupContentDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupDto;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelContentDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
@@ -199,6 +201,32 @@ public class ServiceDeserializer {
             }
             ObjectNode node = yamlMapper.valueToTree(group);
             buildAndAddSpecificationGroup(node, versions, integrationSystem);
+
+            JsonNode systemModelsNode = migratedServiceNode
+                    .path("content")
+                    .path("specificationGroups")
+                    .path("systemModels");
+            List<SystemModelDto> systemModelList = yamlMapper.convertValue(
+                    systemModelsNode,
+                    new TypeReference<List<SystemModelDto>>() {}
+            );
+
+            if (systemModelList == null || systemModelList.isEmpty()) {
+                return;
+            }
+
+            for (SystemModelDto model : systemModelList) {
+                if (model.getContent() == null) {
+                    model.setContent(SystemModelContentDto.builder()
+                            .parentId(group.getId())
+                            .build());
+                } else if (model.getContent().getParentId() == null) {
+                    model.getContent().setParentId(group.getId());
+                }
+
+                ObjectNode modelNode = yamlMapper.valueToTree(model);
+                buildAndAddSpecification(modelNode, versions, integrationSystem.getSpecificationGroups(), serviceDirectory);
+            }
         }
     }
 
