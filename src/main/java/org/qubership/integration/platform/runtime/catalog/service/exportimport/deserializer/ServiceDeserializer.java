@@ -18,7 +18,6 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
@@ -26,7 +25,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupContentDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupDto;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelContentDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
@@ -164,8 +165,6 @@ public class ServiceDeserializer {
         };
     }
 
-    private static final List<String> LEGACY_SYSTEM_MODEL_FIELDS = List.of("systemModels");
-
     private void processLegacyService(
             IntegrationSystemDto integrationSystemDto,
             IntegrationSystem integrationSystem,
@@ -183,57 +182,63 @@ public class ServiceDeserializer {
         }
 
         for (SpecificationGroupDto group : specGroups) {
-            if (group.getContent() != null && group.getContent().getParentId() == null) {
-                group.getContent().setParentId(integrationSystem.getId());
+            if (integrationSystem.getId() != null) {
+                String groupId = integrationSystem.getId();
+
+                if (group.getContent() == null) {
+                    group.setContent(SpecificationGroupContentDto.builder().build());
+                }
+                group.getContent().setParentId(groupId);
+            }
+
+            JsonNode synchronization = migratedServiceNode
+                    .path("content")
+                    .path("specificationGroups")
+                    .path("synchronization");
+            if (!synchronization.isMissingNode() && !synchronization.isNull() && !group.getContent().isSynchronization()) {
+                group.getContent().setSynchronization(synchronization.asBoolean());
             }
             ObjectNode node = yamlMapper.valueToTree(group);
             buildAndAddSpecificationGroup(node, versions, integrationSystem);
         }
 
-        JsonNode contentNode = migratedServiceNode.path("content");
-        if (!(contentNode instanceof ObjectNode)) {
-            return;
-        }
-        JsonNode rawGroupsNode = contentNode.get("specificationGroups");
-        if (!(rawGroupsNode instanceof ArrayNode rawGroups)) {
-            return;
-        }
-
-        for (JsonNode rawGroupNode : rawGroups) {
-            if (!(rawGroupNode instanceof ObjectNode rawGroup)) {
-                continue;
-            }
-            String groupId = rawGroup.path("id").asText(null);
-            if (groupId == null) {
-                continue;
-            }
-
-            for (String field : LEGACY_SYSTEM_MODEL_FIELDS) {
-                JsonNode modelsNode = rawGroup.path(field);
-                if (!(modelsNode instanceof ArrayNode models)) {
+        JsonNode rawGroupsNode = migratedServiceNode
+                .path("content")
+                .path("specificationGroups");
+        if (rawGroupsNode instanceof ArrayNode rawGroups) {
+            for (JsonNode rawGroupNode : rawGroups) {
+                if (!(rawGroupNode instanceof ObjectNode rawGroup)) {
                     continue;
                 }
-                for (JsonNode modelNode : models) {
-                    if (!(modelNode instanceof ObjectNode model)) {
+                String groupId = rawGroup.path("id").asText(null);
+                if (groupId == null) {
+                    continue;
+                }
+
+                for (String field : LEGACY_SYSTEM_MODEL_FIELDS) {
+                    JsonNode modelsNode = rawGroup.path(field);
+                    if (!(modelsNode instanceof ArrayNode models)) {
                         continue;
                     }
-
-                    ensureLegacyModelParentId(model, groupId);
-                    buildAndAddSpecification(model, versions, integrationSystem.getSpecificationGroups(), serviceDirectory);
+                    for (JsonNode modelNode : models) {
+                        if (!(modelNode instanceof ObjectNode modelObjectNode)) {
+                            continue;
+                        }
+                        try {
+                            SystemModelDto modelDto = yamlMapper.treeToValue(modelObjectNode, SystemModelDto.class);
+                            if (modelDto.getContent() == null) {
+                                modelDto.setContent(SystemModelContentDto.builder().build());
+                            }
+                            if (modelDto.getContent().getParentId() == null) {
+                                modelDto.getContent().setParentId(groupId);
+                            }
+                            ObjectNode patchedNode = yamlMapper.valueToTree(modelDto);
+                            buildAndAddSpecification(patchedNode, versions, integrationSystem.getSpecificationGroups(), serviceDirectory);
+                        } catch (JsonProcessingException e) {
+                            throw new RuntimeException("Failed to parse system model", e);
+                        }
+                    }
                 }
-            }
-        }
-    }
-
-    private static void ensureLegacyModelParentId(ObjectNode modelNode, String groupId) {
-        JsonNode contentNode = modelNode.get("content");
-        if (contentNode instanceof ObjectNode content) {
-            if (content.path("parentId").isMissingNode() || content.path("parentId").isNull()) {
-                content.put("parentId", groupId);
-            }
-        } else {
-            if (modelNode.path("parentId").isMissingNode() || modelNode.path("parentId").isNull()) {
-                modelNode.put("parentId", groupId);
             }
         }
     }
@@ -244,9 +249,10 @@ public class ServiceDeserializer {
             IntegrationSystem integrationSystem
     ) {
         try {
-            ObjectNode migratedNode = migrate(node, versions);
+            ObjectNode migratedNode = node.has("content") ? node : migrate(node, versions);
             SpecificationGroupDto specificationGroupDto = yamlMapper.treeToValue(migratedNode, SpecificationGroupDto.class);
             SpecificationGroup specificationGroup = specificationGroupDtoMapper.toInternalEntity(specificationGroupDto);
+
             if (Objects.equals(specificationGroupDto.getContent().getParentId(), integrationSystem.getId())) {
                 integrationSystem.addSpecificationGroup(specificationGroup);
             }
@@ -264,7 +270,7 @@ public class ServiceDeserializer {
             File resourceDirectory
     ) {
         try {
-            ObjectNode migratedNode = migrate(node, versions);
+            ObjectNode migratedNode = node.has("content") ? node : migrate(node, versions);
             SystemModelDto systemModelDto = yamlMapper.treeToValue(migratedNode, SystemModelDto.class);
             SystemModel systemModel = systemModelDtoMapper.toInternalEntity(systemModelDto);
             specificationGroups.stream()
