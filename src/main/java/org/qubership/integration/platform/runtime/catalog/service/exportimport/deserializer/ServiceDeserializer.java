@@ -27,7 +27,6 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.S
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupContentDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelContentDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
@@ -200,46 +199,6 @@ public class ServiceDeserializer {
             }
             ObjectNode node = yamlMapper.valueToTree(group);
             buildAndAddSpecificationGroup(node, versions, integrationSystem);
-        }
-
-        JsonNode rawGroupsNode = migratedServiceNode
-                .path("content")
-                .path("specificationGroups");
-        if (rawGroupsNode instanceof ArrayNode rawGroups) {
-            for (JsonNode rawGroupNode : rawGroups) {
-                if (!(rawGroupNode instanceof ObjectNode rawGroup)) {
-                    continue;
-                }
-                String groupId = rawGroup.path("id").asText(null);
-                if (groupId == null) {
-                    continue;
-                }
-
-                for (String field : LEGACY_SYSTEM_MODEL_FIELDS) {
-                    JsonNode modelsNode = rawGroup.path(field);
-                    if (!(modelsNode instanceof ArrayNode models)) {
-                        continue;
-                    }
-                    for (JsonNode modelNode : models) {
-                        if (!(modelNode instanceof ObjectNode modelObjectNode)) {
-                            continue;
-                        }
-                        try {
-                            SystemModelDto modelDto = yamlMapper.treeToValue(modelObjectNode, SystemModelDto.class);
-                            if (modelDto.getContent() == null) {
-                                modelDto.setContent(SystemModelContentDto.builder().build());
-                            }
-                            if (modelDto.getContent().getParentId() == null) {
-                                modelDto.getContent().setParentId(groupId);
-                            }
-                            ObjectNode patchedNode = yamlMapper.valueToTree(modelDto);
-                            buildAndAddSpecification(patchedNode, versions, integrationSystem.getSpecificationGroups(), serviceDirectory);
-                        } catch (JsonProcessingException e) {
-                            throw new RuntimeException("Failed to parse system model", e);
-                        }
-                    }
-                }
-            }
         }
     }
 
