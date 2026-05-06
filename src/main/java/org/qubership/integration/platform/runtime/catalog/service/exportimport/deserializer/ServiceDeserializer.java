@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
@@ -25,7 +26,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupContentDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupDto;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelContentDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
@@ -92,19 +95,24 @@ public class ServiceDeserializer {
                     Files.readString(serviceFile.toPath()),
                     importFileMigrations.stream().map(ImportFileMigration.class::cast).toList()
             );
-            IntegrationSystemDto integrationSystemDto = yamlMapper.readValue(serviceData, IntegrationSystemDto.class);
+            ObjectNode migratedServiceNode = (ObjectNode) yamlMapper.readTree(serviceData);
+            IntegrationSystemDto integrationSystemDto = yamlMapper.treeToValue(migratedServiceNode, IntegrationSystemDto.class);
             IntegrationSystem integrationSystem = integrationSystemDtoMapper.toInternalEntity(integrationSystemDto);
 
             Collection<File> files = listFiles(serviceDirectory);
 
-            Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_GROUP_FILE_PREFIX),
-                    getFilesData(files, SPECIFICATION_GROUP_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
-                    .forEach(node -> buildAndAddSpecificationGroup(node, versions, integrationSystem));
+            if (integrationSystemDto.getContent() != null && !integrationSystemDto.getContent().getSpecificationGroups().isEmpty()) {
+                processLegacyService(integrationSystemDto, integrationSystem, versions, migratedServiceNode, serviceDirectory);
+            } else {
+                Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_GROUP_FILE_PREFIX),
+                                getFilesData(files, SPECIFICATION_GROUP_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
+                        .forEach(node -> buildAndAddSpecificationGroup(node, versions, integrationSystem));
 
-            Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_FILE_PREFIX),
-                            getFilesData(files, SPECIFICATION_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
-                    .forEach(node ->
-                    buildAndAddSpecification(node, versions, integrationSystem.getSpecificationGroups(), serviceDirectory));
+                Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_FILE_PREFIX),
+                                getFilesData(files, SPECIFICATION_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
+                        .forEach(node ->
+                                buildAndAddSpecification(node, versions, integrationSystem.getSpecificationGroups(), serviceDirectory));
+            }
 
             return integrationSystem;
         } catch (ServiceImportException e) {
@@ -158,15 +166,80 @@ public class ServiceDeserializer {
         };
     }
 
+    private void processLegacyService(
+            IntegrationSystemDto integrationSystemDto,
+            IntegrationSystem integrationSystem,
+            Collection<Integer> versions,
+            ObjectNode migratedServiceNode,
+            File serviceDirectory
+    ) {
+        if (integrationSystemDto.getContent() == null) {
+            return;
+        }
+
+        List<SpecificationGroupDto> specGroups = integrationSystemDto.getContent().getSpecificationGroups();
+        if (specGroups == null || specGroups.isEmpty()) {
+            return;
+        }
+
+        for (SpecificationGroupDto group : specGroups) {
+            if (integrationSystem.getId() != null) {
+                String groupId = integrationSystem.getId();
+
+                if (group.getContent() == null) {
+                    group.setContent(SpecificationGroupContentDto.builder().build());
+                }
+                group.getContent().setParentId(groupId);
+            }
+
+            JsonNode synchronization = migratedServiceNode
+                    .path("content")
+                    .path("specificationGroups")
+                    .path("synchronization");
+            if (!synchronization.isMissingNode() && !synchronization.isNull() && !group.getContent().isSynchronization()) {
+                group.getContent().setSynchronization(synchronization.asBoolean());
+            }
+            ObjectNode node = yamlMapper.valueToTree(group);
+            buildAndAddSpecificationGroup(node, versions, integrationSystem);
+
+            JsonNode systemModelsNode = migratedServiceNode
+                    .path("content")
+                    .path("specificationGroups")
+                    .path("systemModels");
+            List<SystemModelDto> systemModelList = yamlMapper.convertValue(
+                    systemModelsNode,
+                    new TypeReference<List<SystemModelDto>>() {}
+            );
+
+            if (systemModelList == null || systemModelList.isEmpty()) {
+                return;
+            }
+
+            for (SystemModelDto model : systemModelList) {
+                if (model.getContent() == null) {
+                    model.setContent(SystemModelContentDto.builder()
+                            .parentId(group.getId())
+                            .build());
+                } else if (model.getContent().getParentId() == null) {
+                    model.getContent().setParentId(group.getId());
+                }
+
+                ObjectNode modelNode = yamlMapper.valueToTree(model);
+                buildAndAddSpecification(modelNode, versions, integrationSystem.getSpecificationGroups(), serviceDirectory);
+            }
+        }
+    }
+
     private void buildAndAddSpecificationGroup(
             ObjectNode node,
             Collection<Integer> versions,
             IntegrationSystem integrationSystem
     ) {
         try {
-            ObjectNode migratedNode = migrate(node, versions);
+            ObjectNode migratedNode = node.has("content") ? node : migrate(node, versions);
             SpecificationGroupDto specificationGroupDto = yamlMapper.treeToValue(migratedNode, SpecificationGroupDto.class);
             SpecificationGroup specificationGroup = specificationGroupDtoMapper.toInternalEntity(specificationGroupDto);
+
             if (Objects.equals(specificationGroupDto.getContent().getParentId(), integrationSystem.getId())) {
                 integrationSystem.addSpecificationGroup(specificationGroup);
             }
@@ -184,7 +257,7 @@ public class ServiceDeserializer {
             File resourceDirectory
     ) {
         try {
-            ObjectNode migratedNode = migrate(node, versions);
+            ObjectNode migratedNode = node.has("content") ? node : migrate(node, versions);
             SystemModelDto systemModelDto = yamlMapper.treeToValue(migratedNode, SystemModelDto.class);
             SystemModel systemModel = systemModelDtoMapper.toInternalEntity(systemModelDto);
             specificationGroups.stream()
