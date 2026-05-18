@@ -28,8 +28,10 @@ import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.openapi.models.V1SecretList;
+import io.kubernetes.client.util.PatchUtils;
+import io.kubernetes.client.util.ProxyContentTypeRequestBody;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.Call;
+import okhttp3.Request;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiNotFoundException;
@@ -90,20 +92,9 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
         ConcurrentMap<String, ConcurrentMap<String, String>> secrets = new ConcurrentHashMap<>();
 
         try {
-            V1SecretList secretList = coreApi.listNamespacedSecret(
-                    namespace,
-                    null,
-                    null,
-                    null,
-                    null,
-                    label.getKey() + "=" + label.getValue(),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-            );
+            V1SecretList secretList = coreApi.listNamespacedSecret(namespace)
+                    .labelSelector(label.getKey() + "=" + label.getValue())
+                    .execute();
 
             List<V1Secret> secretListItems = secretList.getItems();
             for (V1Secret secret : secretListItems) {
@@ -135,7 +126,7 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
     @Nullable
     public V1Secret getSecretObjectByName(String name) {
         try {
-            return coreApi.readNamespacedSecret(name, namespace, null);
+            return coreApi.readNamespacedSecret(name, namespace).execute();
         } catch (ApiException e) {
             if (e.getCode() != 404) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
@@ -154,11 +145,7 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
         ConcurrentMap<String, String> secretMap = new ConcurrentHashMap<>();
 
         try {
-            V1Secret secret = coreApi.readNamespacedSecret(
-                    name,
-                    namespace,
-                    null
-            );
+            V1Secret secret = coreApi.readNamespacedSecret(name, namespace).execute();
 
             if (secret.getData() != null) {
                 secret.getData().forEach((k, v) -> secretMap.put(k, new String(v)));
@@ -193,7 +180,7 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
             secret.setMetadata(metadata);
             secret.setData(dataByte);
 
-            coreApi.createNamespacedSecret(namespace, secret, null, null, null, null);
+            coreApi.createNamespacedSecret(namespace, secret).execute();
         } catch (ApiException e) {
             if (e.getCode() == 409) {
                 throw new SecretAlreadyExists("Secret with name " + name + " already exists");
@@ -230,26 +217,30 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
     }
 
     @Override
-    public Call removeSecretDataAsync(String secretName, Set<String> keys, SecretUpdateCallback callback) {
+    public void removeSecretDataAsync(String secretName, Set<String> keys, SecretUpdateCallback callback) {
         List<JsonPatch> patches = keys.stream()
                 .map(key -> new JsonPatch(PatchOperation.REMOVE, getDataKeyPath(key), null))
                 .toList();
 
         try {
-            return coreApi.patchNamespacedSecretAsync(
-                    secretName,
-                    namespace,
-                    new V1Patch(objectMapper.writeValueAsString(patches)),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
+            PatchUtils.PatchCallFunc patchFunc = getPatchFunction(secretName, patches);
+            Request request = patchFunc.getCall().request();
+            coreApi.getApiClient().executeAsync(
+                    coreApi
+                            .getApiClient()
+                            .getHttpClient()
+                            .newCall(
+                                    patchFunc
+                                            .getCall()
+                                            .request()
+                                            .newBuilder()
+                                            .patch(new ProxyContentTypeRequestBody(
+                                                    request.body(), V1Patch.PATCH_FORMAT_JSON_PATCH))
+                                            .build()
+                            ),
+                    V1Secret.class,
                     callback
             );
-        } catch (JsonProcessingException e) {
-            log.error("Unable to serialize secret patch request", e);
-            throw new KubeApiException("Unable to serialize secret patch request", e);
         } catch (ApiException e) {
             log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
@@ -268,29 +259,37 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
         ConcurrentMap<String, String> secretMap = new ConcurrentHashMap<>();
 
         try {
-            V1Secret secret = coreApi.patchNamespacedSecret(
-                    secretName,
-                    namespace,
-                    new V1Patch(objectMapper.writeValueAsString(patches)),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
+            V1Secret secret = PatchUtils.patch(
+                    V1Secret.class,
+                    getPatchFunction(secretName, patches),
+                    V1Patch.PATCH_FORMAT_JSON_PATCH,
+                    coreApi.getApiClient()
             );
 
             if (secret.getData() != null) {
                 secret.getData().forEach((k, v) -> secretMap.put(k, new String(v)));
             }
-        } catch (JsonProcessingException e) {
-            log.error("Unable to serialize secret patch request", e);
-            throw new KubeApiException("Unable to serialize secret patch request", e);
         } catch (ApiException e) {
             log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
         }
 
         return secretMap;
+    }
+
+    private PatchUtils.PatchCallFunc getPatchFunction(String secretName, List<JsonPatch> patches) {
+        return () -> {
+            try {
+                return coreApi.patchNamespacedSecret(
+                        secretName,
+                        namespace,
+                        new V1Patch(objectMapper.writeValueAsString(patches))
+                ).buildCall(null);
+            } catch (JsonProcessingException e) {
+                log.error("Unable to serialize secret patch request", e);
+                throw new KubeApiException("Unable to serialize secret patch request", e);
+            }
+        };
     }
 
     private String getDataKeyPath(String key) {
