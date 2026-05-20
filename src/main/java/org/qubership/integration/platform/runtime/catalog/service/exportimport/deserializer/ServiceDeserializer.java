@@ -242,10 +242,10 @@ public class ServiceDeserializer {
         JsonNode contentModel = model.path(CONTENT);
         if (contentModel.path(CONTENT).isMissingNode() || contentModel.path(CONTENT).isNull()) {
             ObjectNode contentNode = yamlMapper.createObjectNode();
-            contentNode.put("parentId", groupId);
+            contentNode.put(PARENT_ID, groupId);
             ((ObjectNode) model).set(CONTENT, contentNode);
-        } else if (contentModel.path("parentId").isMissingNode() || contentModel.path("parentId").isNull()) {
-            ((ObjectNode) contentModel).put("parentId", groupId);
+        } else if (contentModel.path(PARENT_ID).isMissingNode() || contentModel.path(PARENT_ID).isNull()) {
+            ((ObjectNode) contentModel).put(PARENT_ID, groupId);
         }
     }
 
